@@ -52,7 +52,12 @@ export async function enrichBriefWithConcepts(brief: BriefJSON): Promise<{ hook_
     `You are a creative strategist for Instagram advertising.
 
 Given the brief below, derive:
-1. hook_concept: A SPECIFIC, concrete creative hook for the ad headline. It must reference the actual product/offer/action — NOT generic phrases like "Study Abroad" or "Learn More". Be direct about what the ad is selling or promoting. One sentence, action-oriented, punchy.
+1. hook_concept: A SPECIFIC, punchy billboard-style headline for the ad. STRICT RULES:
+   - 3 to 6 words MAXIMUM — think billboard, not sentence
+   - NO full sentences, NO articles (a/the), NO filler words
+   - Must reference the actual product/offer/role — NOT generic like "Study Abroad" or "Learn More"
+   - Examples of GOOD hook_concepts: "Join as Counsellor", "Hire Top Counsellors", "Counsellors Wanted Now", "Shape Student Futures"
+   - Examples of BAD hook_concepts: "Leap Scholar seeks 0-2 year experienced counsellors" (too long), "Study Abroad" (generic)
 2. psychological_trigger: Exactly one of: LOSS_AVERSION, CURIOSITY_GAP, SOCIAL_PROOF, NOVELTY, URGENCY — whichever best fits the product and persona.
 
 Brief:
