@@ -27,7 +27,7 @@ export async function sendChatMessage(
 ): Promise<string> {
   const ai = getGenAI()
   const model = ai.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
     systemInstruction: systemPrompt,
   })
 
@@ -47,7 +47,7 @@ export async function sendChatMessage(
 export async function assemblMetaPrompt(brief: BriefJSON): Promise<string> {
   const ai = getGenAI()
   const model = ai.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
     systemInstruction: META_PROMPT_ASSEMBLER_SYSTEM,
   })
 
@@ -64,7 +64,6 @@ export interface GeneratedImage {
 
 export async function generateImage(metaPrompt: string): Promise<GeneratedImage> {
   const ai = getGenAI()
-  // Using the exact model name from the PRD
   const model = ai.getGenerativeModel({ model: 'gemini-3-pro-image-preview' })
 
   const result = await model.generateContent({
@@ -128,7 +127,7 @@ export async function scoreCreative(
 ): Promise<ScoringResult> {
   const ai = getGenAI()
   const model = ai.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
     systemInstruction: SCORING_SYSTEM_PROMPT,
   })
 
