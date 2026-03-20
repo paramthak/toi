@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth'
-import { assemblMetaPrompt, assemblMetaPromptWithEval, generateImage } from '@/lib/gemini'
+import { assemblMetaPrompt, assemblMetaPromptWithEval, enrichBriefWithConcepts, generateImage } from '@/lib/gemini'
 import { saveBase64Image, fileExists, readFileAsBase64 } from '@/lib/storage'
 import path from 'path'
 import { query } from '@/lib/db'
 import { BriefJSON } from '@/lib/prompts/metaPromptAssembler'
+
+// Archetypes cycled in order when AUTO is selected for multiple variants
+const AUTO_ARCHETYPE_ROTATION = [
+  'UGC_STYLE',
+  'HIGH_INFORMATION',
+  'TESTIMONIAL_SCREENSHOT',
+  'BEFORE_AFTER',
+  'PATTERN_INTERRUPT',
+  'UGLY_ANTI_DESIGN',
+  'MINIMALIST',
+  'MEME_IFIED',
+]
 
 const VARIATION_DIRECTIVES: Record<number, string> = {
   2: 'Use a slightly different composition angle. Same subject, slightly different framing and lighting direction.',
@@ -86,12 +98,25 @@ export async function POST(request: NextRequest) {
       try {
         const total = Math.min(variantCount, 10)
 
+        // Enrich hook_concept and psychological_trigger when blank (Quick Form flow)
+        if (!brief.hook_concept?.trim() || !brief.psychological_trigger?.trim()) {
+          emit({ type: 'status', message: 'Deriving creative concept from brief...' })
+          const concepts = await enrichBriefWithConcepts(brief)
+          if (!brief.hook_concept?.trim()) brief.hook_concept = concepts.hook_concept
+          if (!brief.psychological_trigger?.trim()) brief.psychological_trigger = concepts.psychological_trigger
+        }
+
         for (let i = 1; i <= total; i++) {
           const variantLabel = total > 1 ? `Variant ${i}/${total}: ` : ''
 
           const variantBrief = { ...brief }
           if (i > 1) {
             variantBrief.variant_instruction = `Variant ${i} of ${variantCount}: ${VARIATION_DIRECTIVES[i] || VARIATION_DIRECTIVES[6]}`
+          }
+
+          // For AUTO with multiple variants, assign explicit different archetypes so each variant has a distinct style
+          if (brief.archetype === 'AUTO_SELECT' && total > 1) {
+            variantBrief.archetype = AUTO_ARCHETYPE_ROTATION[(i - 1) % AUTO_ARCHETYPE_ROTATION.length]
           }
 
           if (logoImageBase64) {
