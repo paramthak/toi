@@ -108,10 +108,13 @@ export default function ChatInterface({ preloadedBrief }: ChatInterfaceProps) {
   const productPhotoInputRef = useRef<HTMLInputElement>(null)
 
   // Chat history for Gemini
-  const geminiHistory = messages
+  // Gemini requires history to start with 'user' — trim any leading model/assistant messages
+  const geminiHistoryRaw = messages
     .filter(m => !m.imageUrl) // skip image messages from history
-    .slice(1) // skip intro
+    .slice(1) // skip intro message
     .map(m => ({ role: m.role === 'assistant' ? 'model' as const : 'user' as const, parts: m.content }))
+  const firstUserIdx = geminiHistoryRaw.findIndex(m => m.role === 'user')
+  const geminiHistory = firstUserIdx >= 0 ? geminiHistoryRaw.slice(firstUserIdx) : []
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -278,8 +281,10 @@ export default function ChatInterface({ preloadedBrief }: ChatInterfaceProps) {
         setPendingBrief(data.briefData)
         setConfirmed(false)
       }
-    } catch {
-      addAssistantMessage('Something went wrong. Please try again.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      console.error('Chat send error:', msg)
+      addAssistantMessage(`Something went wrong: ${msg}. Please try again.`)
     } finally {
       setLoading(false)
       inputRef.current?.focus()
