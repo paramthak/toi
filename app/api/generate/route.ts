@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
       // Update brand_constraints to reference logo as provided input image
       if (logoImageBase64) {
-        variantBrief.brand_constraints = `${variantBrief.brand_constraints || 'none'}. LOGO INPUT PROVIDED: The brand logo has been provided as a visual reference image input. Embed the exact provided logo in the bottom-right corner of the final image, at approximately 10-12% of frame width. Preserve its exact colors and shape. Add a subtle background pad for legibility if needed.`
+        variantBrief.brand_constraints = `${variantBrief.brand_constraints || 'none'}. LOGO INPUT PROVIDED: The brand logo has been provided as a visual reference image input. Embed the exact provided logo in the bottom-left corner of the final image, at approximately 10-12% of frame width. Preserve its exact colors, transparency, and shape without modification. Do NOT add any background rectangle, shadow, or padding behind the logo.`
       } else if (logoUrl) {
         // SVG fallback: text-only instruction
         variantBrief.brand_constraints = `${variantBrief.brand_constraints || 'none'}. Place brand logo in bottom-right corner.`

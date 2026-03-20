@@ -47,6 +47,7 @@ export default function ProductForm() {
   const [productPhotoUrl, setProductPhotoUrl] = useState<string | null>(null)
   const [productPhotoUploading, setProductPhotoUploading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [regeneratingImproved, setRegeneratingImproved] = useState(false)
   const [generations, setGenerations] = useState<GenerationResult[]>([])
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -418,16 +419,22 @@ export default function ProductForm() {
 
         {/* Right — output */}
         <div className="space-y-4">
-          {generating && generations.length === 0 && (
-            <div className="relative w-full aspect-[4/5] rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800">
+          {(generating && generations.length === 0) || regeneratingImproved ? (
+            <div className={cn(
+              'relative w-full rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800',
+              regeneratingImproved && selected
+                ? (selected.aspectRatio === '9:16' ? 'aspect-[9/16]' : selected.aspectRatio === '1:1' ? 'aspect-square' : 'aspect-[4/5]')
+                : 'aspect-[4/5]'
+            )}>
               <div className="shimmer absolute inset-0" />
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                 <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                {regeneratingImproved && <p className="text-zinc-400 text-xs mt-1">Applying improvements...</p>}
               </div>
             </div>
-          )}
+          ) : null}
 
-          {generations.length > 0 && (
+          {generations.length > 0 && !regeneratingImproved && (
             <>
               {generations.length > 1 && (
                 <div className="flex gap-2 flex-wrap">
@@ -479,17 +486,23 @@ export default function ProductForm() {
                       generationId={selected.id}
                       logoUrl={logoUrl || undefined}
                       productPhotoUrl={productPhotoUrl || undefined}
-                      onRegenerate={(newImageUrl, newScoring) => {
+                      onRegenerateStart={() => setRegeneratingImproved(true)}
+                      onRegenerate={(newGenId, newImageUrl) => {
+                        setRegeneratingImproved(false)
                         const newGen: GenerationResult = {
-                          id: `improved-${Date.now()}`,
+                          id: newGenId,
                           imageUrl: newImageUrl,
                           aspectRatio: selected.aspectRatio,
                           variantNumber: generations.length + 1,
                           archetype: selected.archetype,
-                          scoring: newScoring,
+                          scoringLoading: true,
                         }
-                        setGenerations(prev => [...prev, newGen])
-                        setSelectedIdx(generations.length)
+                        setGenerations(prev => {
+                          const next = [...prev, newGen]
+                          setSelectedIdx(next.length - 1)
+                          return next
+                        })
+                        scoreGen(newGenId)
                       }}
                     />
                   )}

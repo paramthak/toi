@@ -62,7 +62,8 @@ interface ScoreCardProps {
   generationId?: string
   logoUrl?: string
   productPhotoUrl?: string
-  onRegenerate?: (imageUrl: string, scoring: ScoringResult) => void
+  onRegenerateStart?: () => void
+  onRegenerate?: (generationId: string, imageUrl: string) => void
 }
 
 export default function ScoreCard({
@@ -72,6 +73,7 @@ export default function ScoreCard({
   generationId,
   logoUrl,
   productPhotoUrl,
+  onRegenerateStart,
   onRegenerate,
 }: ScoreCardProps) {
   const [regenerating, setRegenerating] = useState(false)
@@ -109,6 +111,7 @@ export default function ScoreCard({
     if (!generationId) return
     setRegenerating(true)
     setRegenerateError(null)
+    onRegenerateStart?.()
     try {
       const res = await fetch('/api/regenerate-improved', {
         method: 'POST',
@@ -117,7 +120,7 @@ export default function ScoreCard({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      onRegenerate?.(data.imageUrl, data.scoring)
+      onRegenerate?.(data.generationId, data.imageUrl)
     } catch (err) {
       setRegenerateError(err instanceof Error ? err.message : 'Regeneration failed')
     } finally {

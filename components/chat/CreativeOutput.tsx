@@ -24,10 +24,12 @@ interface CreativeOutputProps {
   briefConcept?: string
   logoUrl?: string | null
   productPhotoUrl?: string | null
+  isRegeneratingImproved?: boolean
+  onRegenerateStart?: () => void
   onAddGeneration?: (gen: Generation) => void
 }
 
-export default function CreativeOutput({ generations, isGenerating, briefConcept, logoUrl, productPhotoUrl, onAddGeneration }: CreativeOutputProps) {
+export default function CreativeOutput({ generations, isGenerating, briefConcept, logoUrl, productPhotoUrl, isRegeneratingImproved, onRegenerateStart, onAddGeneration }: CreativeOutputProps) {
   const [selectedIdx, setSelectedIdx] = useState(0)
 
   useEffect(() => {
@@ -37,21 +39,21 @@ export default function CreativeOutput({ generations, isGenerating, briefConcept
     }
   }, [generations.length])
 
-  if (isGenerating && generations.length === 0) {
+  if ((isGenerating && generations.length === 0) || isRegeneratingImproved) {
     return (
       <div className="flex flex-col items-center justify-center p-8 space-y-4">
         <div className="relative w-full max-w-xs aspect-[4/5] rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800">
           <div className="shimmer absolute inset-0" />
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6">
             <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-            {briefConcept && (
-              <p className="text-zinc-400 text-sm text-center leading-relaxed">
-                {briefConcept}
-              </p>
-            )}
+            <p className="text-zinc-400 text-sm text-center leading-relaxed">
+              {isRegeneratingImproved ? 'Applying improvements...' : briefConcept}
+            </p>
           </div>
         </div>
-        <p className="text-zinc-500 text-xs">Generating your creative...</p>
+        <p className="text-zinc-500 text-xs">
+          {isRegeneratingImproved ? 'Regenerating with all improvements...' : 'Generating your creative...'}
+        </p>
       </div>
     )
   }
@@ -129,17 +131,16 @@ export default function CreativeOutput({ generations, isGenerating, briefConcept
           generationId={selected.id}
           logoUrl={logoUrl || undefined}
           productPhotoUrl={productPhotoUrl || undefined}
-          onRegenerate={(newImageUrl, newScoring) => {
-            const newGen: Generation = {
-              id: `improved-${Date.now()}`,
+          onRegenerate={(newGenId, newImageUrl) => {
+            onAddGeneration?.({
+              id: newGenId,
               imageUrl: newImageUrl,
               metaPrompt: '',
               archetype: selected.archetype,
               aspectRatio: selected.aspectRatio,
               variantNumber: generations.length + 1,
-              scoring: newScoring,
-            }
-            onAddGeneration?.(newGen)
+              scoringLoading: true,
+            })
           }}
         />
       )}

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth'
-import { assemblMetaPrompt, generateImage, scoreCreative } from '@/lib/gemini'
+import { assemblMetaPrompt, generateImage } from '@/lib/gemini'
 import { saveBase64Image, fileExists, readFileAsBase64 } from '@/lib/storage'
 import { query } from '@/lib/db'
-import { getScoreLabel } from '@/lib/prompts/scoringPrompt'
 import { BriefJSON } from '@/lib/prompts/metaPromptAssembler'
 import path from 'path'
 
@@ -26,12 +25,11 @@ export async function POST(request: NextRequest) {
     const genRows = await query<{
       id: string
       session_id: string
-      image_url: string
       brief_json: Record<string, unknown>
       archetype: string
       aspect_ratio: string
     }>(
-      `SELECT id, session_id, image_url, brief_json, archetype, aspect_ratio FROM generations WHERE id = $1`,
+      `SELECT id, session_id, brief_json, archetype, aspect_ratio FROM generations WHERE id = $1`,
       [generationId]
     )
     if (!genRows.length) {
@@ -41,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch the latest score to get improvement_tips with prompt_addition
     const scoreRows = await query<{ raw_response: string | Record<string, unknown> }>(
-      `SELECT raw_response FROM scores WHERE generation_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      `SELECT raw_response FROM scores WHERE generation_id = $1 LIMIT 1`,
       [generationId]
     )
 
@@ -51,24 +49,22 @@ export async function POST(request: NextRequest) {
 
     if (scoreRows.length) {
       try {
-        // raw_response is JSONB — may come back as object already
         const raw = scoreRows[0].raw_response
         const scoreData = typeof raw === 'string' ? JSON.parse(raw) : raw
-        const tips: Array<{ prompt_addition?: string }> = scoreData.improvement_tips || []
+        const tips: Array<{ prompt_addition?: string }> = (scoreData as Record<string, unknown>).improvement_tips as Array<{ prompt_addition?: string }> || []
         const additions = tips
           .filter(t => t.prompt_addition)
           .map(t => t.prompt_addition!)
           .join(' ')
 
         if (additions) {
-          // Append improvements to the hook_concept so the meta-prompt assembler sees them
           enrichedBrief.hook_concept = [
             originalBrief.hook_concept,
             `[IMPROVEMENT DIRECTIVES: ${additions}]`,
           ].filter(Boolean).join(' ')
         }
       } catch {
-        // If scoring data is malformed, proceed with original brief
+        // Proceed with original brief if scoring data is malformed
       }
     }
 
@@ -96,15 +92,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update brand_constraints to reference logo
     if (logoImageBase64) {
-      enrichedBrief.brand_constraints = `${enrichedBrief.brand_constraints || 'none'}. LOGO INPUT PROVIDED: The brand logo has been provided as a visual reference image input. Embed the exact provided logo in the bottom-left corner of the final image, at approximately 10-12% of frame width. Preserve its exact colors and shape. Add a subtle background pad for legibility if needed.`
+      enrichedBrief.brand_constraints = `${enrichedBrief.brand_constraints || 'none'}. LOGO INPUT PROVIDED: The brand logo has been provided as a visual reference image input. Embed the exact provided logo in the bottom-left corner of the final image, at approximately 10-12% of frame width. Preserve its exact colors, transparency, and shape without modification. Do NOT add any background rectangle, shadow, or padding behind the logo.`
     }
 
-    // Assemble meta prompt
+    // Assemble meta prompt + generate image (only 2 API calls — avoids Railway 30s timeout)
     const metaPrompt = await assemblMetaPrompt(enrichedBrief, productImageBase64, productImageMime)
 
-    // Build input images
     const inputImages: Array<{ base64Data: string; mimeType: string }> = []
     if (logoImageBase64 && logoImageMime) {
       inputImages.push({ base64Data: logoImageBase64, mimeType: logoImageMime })
@@ -113,13 +107,11 @@ export async function POST(request: NextRequest) {
       inputImages.push({ base64Data: productImageBase64, mimeType: productImageMime })
     }
 
-    // Generate improved image
     const generatedImage = await generateImage(
       metaPrompt,
       inputImages.length > 0 ? inputImages : undefined
     )
 
-    // Save image
     const imageUrl = await saveBase64Image(generatedImage.base64Data, generatedImage.mimeType)
 
     // Save generation record
@@ -140,40 +132,17 @@ export async function POST(request: NextRequest) {
     )
     const newGenerationId = rows[0].id
 
-    // Score the new creative
-    const scoring = await scoreCreative(
-      generatedImage.base64Data,
-      generatedImage.mimeType,
-      enrichedBrief
-    )
-    scoring.score_label = getScoreLabel(scoring.final_score)
-
-    // Save score
-    await query(
-      `INSERT INTO scores
-        (generation_id, raw_response, final_score, score_label, scroll_stop_gate, gate_passed)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        newGenerationId,
-        JSON.stringify(scoring),
-        scoring.final_score,
-        scoring.score_label,
-        scoring.scroll_stop_gate.gate_score,
-        scoring.scroll_stop_gate.gate_passed,
-      ]
-    )
-
+    // Return immediately — client will call /api/score separately (same pattern as initial generation)
     return NextResponse.json({
       generationId: newGenerationId,
       imageUrl,
-      scoring,
       archetype: enrichedBrief.archetype,
     })
   } catch (err) {
     console.error('Regenerate-improved error:', err)
     const message = err instanceof Error ? err.message : 'Regeneration failed'
     return NextResponse.json(
-      { error: 'Regeneration failed — please try again.', detail: message },
+      { error: `Regeneration failed: ${message}`, detail: message },
       { status: 500 }
     )
   }

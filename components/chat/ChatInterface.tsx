@@ -98,6 +98,7 @@ export default function ChatInterface({ preloadedBrief }: ChatInterfaceProps) {
   const [productPhotoUploading, setProductPhotoUploading] = useState(false)
   const [generations, setGenerations] = useState<Generation[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isRegeneratingImproved, setIsRegeneratingImproved] = useState(false)
   const [briefConcept, setBriefConcept] = useState<string | undefined>()
   const [pendingBrief, setPendingBrief] = useState<BriefJSON | null>(preloadedBrief || null)
   const [confirmed, setConfirmed] = useState(false)
@@ -542,14 +543,20 @@ export default function ChatInterface({ preloadedBrief }: ChatInterfaceProps) {
               briefConcept={briefConcept}
               logoUrl={logoUrl}
               productPhotoUrl={productPhotoUrl}
-              onAddGeneration={gen => setGenerations(prev => [...prev, gen])}
+              isRegeneratingImproved={isRegeneratingImproved}
+              onRegenerateStart={() => setIsRegeneratingImproved(true)}
+              onAddGeneration={gen => {
+                setIsRegeneratingImproved(false)
+                setGenerations(prev => [...prev, gen])
+                scoreGeneration(gen.id)
+              }}
             />
           </div>
         )}
       </div>
 
       {/* Creative output — mobile */}
-      {(generations.length > 0 || isGenerating) && (
+      {(generations.length > 0 || isGenerating || isRegeneratingImproved) && (
         <div className="md:hidden flex-shrink-0 border-t border-zinc-800 px-4 py-4 max-h-[60vh] overflow-y-auto">
           <CreativeOutput
             generations={generations}
@@ -557,7 +564,13 @@ export default function ChatInterface({ preloadedBrief }: ChatInterfaceProps) {
             briefConcept={briefConcept}
             logoUrl={logoUrl}
             productPhotoUrl={productPhotoUrl}
-            onAddGeneration={gen => setGenerations(prev => [...prev, gen])}
+            isRegeneratingImproved={isRegeneratingImproved}
+            onRegenerateStart={() => setIsRegeneratingImproved(true)}
+            onAddGeneration={gen => {
+              setIsRegeneratingImproved(false)
+              setGenerations(prev => [...prev, gen])
+              scoreGeneration(gen.id)
+            }}
           />
         </div>
       )}
