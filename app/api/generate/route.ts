@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth'
-import { assemblMetaPrompt, generateImage } from '@/lib/gemini'
+import { assemblMetaPrompt, assemblMetaPromptWithEval, generateImage } from '@/lib/gemini'
 import { saveBase64Image, fileExists, readFileAsBase64 } from '@/lib/storage'
 import path from 'path'
 import { query } from '@/lib/db'
@@ -94,13 +94,21 @@ export async function POST(request: NextRequest) {
       // Update brand_constraints to reference logo as provided input image
       if (logoImageBase64) {
         variantBrief.brand_constraints = `${variantBrief.brand_constraints || 'none'}. LOGO INPUT PROVIDED: The brand logo has been provided as a visual reference image input. Embed the exact provided logo in the bottom-left corner of the final image, at approximately 10-12% of frame width. Preserve its exact colors, transparency, and shape without modification. Do NOT add any background rectangle, shadow, or padding behind the logo.`
+        // Store logo data in brief for Railway ephemeral filesystem fallback (used in regenerate-improved)
+        variantBrief._logo_b64 = logoImageBase64
+        variantBrief._logo_mime = logoImageMime
       } else if (logoUrl) {
         // SVG fallback: text-only instruction
-        variantBrief.brand_constraints = `${variantBrief.brand_constraints || 'none'}. Place brand logo in bottom-right corner.`
+        variantBrief.brand_constraints = `${variantBrief.brand_constraints || 'none'}. Place brand logo in bottom-left corner.`
       }
 
-      // Assemble meta prompt (with optional product photo for vision context)
-      const metaPrompt = await assemblMetaPrompt(variantBrief, productImageBase64, productImageMime)
+      // Assemble meta prompt with text-only eval-refine loop
+      const metaPrompt = await assemblMetaPromptWithEval(
+        variantBrief,
+        productImageBase64,
+        productImageMime,
+        !!logoImageBase64
+      )
 
       // Build input images for image generation (logo first, then product)
       const inputImages: Array<{ base64Data: string; mimeType: string }> = []
@@ -124,7 +132,7 @@ export async function POST(request: NextRequest) {
         } catch (err) {
           attempt++
           if (attempt >= 2) throw err
-          // Simplify the brief slightly on retry
+          // Simplify the brief slightly on retry (no eval loop on retry to save time)
           const simplifiedBrief = { ...variantBrief, hook_concept: 'simplified version' }
           const retryPrompt = await assemblMetaPrompt(simplifiedBrief)
           generatedImage = await generateImage(retryPrompt)

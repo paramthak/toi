@@ -259,7 +259,23 @@ MANDATORY TEXT RENDERING STATEMENT — include this at the end of every prompt:
 "CRITICAL: This is a real Instagram advertisement. The above text elements MUST
 be rendered as clearly readable text physically appearing in the image. The
 headline and CTA are not optional decorations — they are load-bearing creative
-elements. Render all text with high contrast, legible at mobile screen size."`
+elements. Render all text with high contrast, legible at mobile screen size."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SELF-EVALUATION — CHECK BEFORE OUTPUTTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After drafting your prompt, verify every item below. If any is missing, rewrite to add it before outputting:
+
+□ RENDER:HEADLINE present with exact quoted text?
+□ RENDER:CTA present with exact CTA copy, "bottom-right" position, specific high-contrast color?
+□ ONE trigger encoded VISUALLY — concrete visual details, not just named?
+□ Specific pattern interrupt described — HOW does it stop a scroll (not generic "eye-catching")?
+□ If human: specific lighting source named (e.g. "window light from left") + skin texture (pores/subsurface scattering)?
+□ Logo in BOTTOM-LEFT with NO background rectangle or shadow (if logo provided)?
+□ Ends with MANDATORY TEXT RENDERING STATEMENT?
+
+Only output the final, verified version.`
 
 export interface BriefJSON {
   persona: string
@@ -275,10 +291,16 @@ export interface BriefJSON {
   cta_text: string
   emotional_lane: 'PAIN' | 'ASPIRATION' | 'COMBINATION'
   variant_instruction?: string
+  _refinement_notes?: string  // structured feedback from previous scoring cycle
+  _logo_b64?: string          // logo base64 for Railway ephemeral filesystem fallback
+  _logo_mime?: string
 }
 
 export function buildMetaPromptUserMessage(brief: BriefJSON): string {
-  return `${JSON.stringify(brief, null, 2)}
+  // Strip internal fields from the JSON sent to the model
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { _logo_b64, _logo_mime, ...briefForModel } = brief
+  return `${JSON.stringify(briefForModel, null, 2)}
 
 CRITICAL REQUIREMENT: Your output prompt MUST explicitly include RENDER: directives
 for at minimum these text elements:

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth'
-import { assemblMetaPrompt, generateImage } from '@/lib/gemini'
+import { assemblMetaPromptWithEval, generateImage } from '@/lib/gemini'
 import { saveBase64Image, fileExists, readFileAsBase64 } from '@/lib/storage'
 import { query } from '@/lib/db'
 import { BriefJSON } from '@/lib/prompts/metaPromptAssembler'
@@ -50,18 +50,35 @@ export async function POST(request: NextRequest) {
     if (scoreRows.length) {
       try {
         const raw = scoreRows[0].raw_response
-        const scoreData = typeof raw === 'string' ? JSON.parse(raw) : raw
-        const tips: Array<{ prompt_addition?: string }> = (scoreData as Record<string, unknown>).improvement_tips as Array<{ prompt_addition?: string }> || []
-        const additions = tips
-          .filter(t => t.prompt_addition)
-          .map(t => t.prompt_addition!)
-          .join(' ')
+        const scoreData = typeof raw === 'string' ? JSON.parse(raw) : raw as Record<string, unknown>
+        const tips: Array<{ priority: number; tip: string; impact: string; factor: string; prompt_addition?: string }> =
+          (scoreData.improvement_tips as typeof tips) || []
+        const finalScore = scoreData.final_score as number | undefined
+        const scoreLabel = scoreData.score_label as string | undefined
 
-        if (additions) {
-          enrichedBrief.hook_concept = [
-            originalBrief.hook_concept,
-            `[IMPROVEMENT DIRECTIVES: ${additions}]`,
-          ].filter(Boolean).join(' ')
+        if (tips.length > 0) {
+          // Build a structured refinement note that the meta-prompt assembler can act on directly
+          const mandatoryFixes = tips
+            .filter(t => t.prompt_addition)
+            .map((t, i) => `${i + 1}. [${t.impact.toUpperCase()} IMPACT — ${t.factor}]: ${t.tip}\n   PROMPT FIX: ${t.prompt_addition}`)
+            .join('\n')
+
+          enrichedBrief._refinement_notes = [
+            `REFINEMENT MODE: Previous creative scored ${finalScore !== undefined ? Math.round(finalScore) : '?'}/100 (${scoreLabel || 'low score'}).`,
+            `The following issues MUST be fixed in the new prompt:`,
+            mandatoryFixes,
+            `IMPORTANT: Keep the same archetype (${enrichedBrief.archetype}), emotional lane (${enrichedBrief.emotional_lane}), and core concept. Only fix the listed issues.`,
+          ].join('\n')
+
+          // Also embed the top prompt_additions into hook_concept for backward compatibility
+          const additions = tips
+            .filter(t => t.prompt_addition)
+            .slice(0, 3)
+            .map(t => t.prompt_addition!)
+            .join(' ')
+          if (additions) {
+            enrichedBrief.hook_concept = `${originalBrief.hook_concept} [REQUIRED IMPROVEMENTS: ${additions}]`
+          }
         }
       } catch {
         // Proceed with original brief if scoring data is malformed
@@ -80,24 +97,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Load logo
+    // Load logo — try filesystem first, fall back to _logo_b64 stored in original brief_json
     let logoImageBase64: string | undefined
     let logoImageMime: string | undefined
     if (logoUrl) {
       const logoFilename = path.basename(logoUrl)
       const logoExt = path.extname(logoFilename).toLowerCase().replace('.', '')
-      if (logoExt !== 'svg' && fileExists(logoFilename)) {
-        logoImageBase64 = readFileAsBase64(logoFilename)
-        logoImageMime = logoExt === 'jpg' || logoExt === 'jpeg' ? 'image/jpeg' : 'image/png'
+      if (logoExt !== 'svg') {
+        if (fileExists(logoFilename)) {
+          logoImageBase64 = readFileAsBase64(logoFilename)
+          logoImageMime = logoExt === 'jpg' || logoExt === 'jpeg' ? 'image/jpeg' : 'image/png'
+        } else if (originalBrief._logo_b64) {
+          // Railway ephemeral filesystem: file gone, but we stored the data in brief_json
+          logoImageBase64 = originalBrief._logo_b64
+          logoImageMime = originalBrief._logo_mime || 'image/png'
+          console.log('[regenerate-improved] logo loaded from DB fallback (_logo_b64)')
+        }
       }
     }
 
     if (logoImageBase64) {
       enrichedBrief.brand_constraints = `${enrichedBrief.brand_constraints || 'none'}. LOGO INPUT PROVIDED: The brand logo has been provided as a visual reference image input. Embed the exact provided logo in the bottom-left corner of the final image, at approximately 10-12% of frame width. Preserve its exact colors, transparency, and shape without modification. Do NOT add any background rectangle, shadow, or padding behind the logo.`
+      // Carry logo data forward so future regenerations also have the fallback
+      enrichedBrief._logo_b64 = logoImageBase64
+      enrichedBrief._logo_mime = logoImageMime
     }
 
-    // Assemble meta prompt + generate image (only 2 API calls — avoids Railway 30s timeout)
-    const metaPrompt = await assemblMetaPrompt(enrichedBrief, productImageBase64, productImageMime)
+    // Assemble meta prompt with eval loop + generate image
+    const metaPrompt = await assemblMetaPromptWithEval(
+      enrichedBrief,
+      productImageBase64,
+      productImageMime,
+      !!logoImageBase64
+    )
 
     const inputImages: Array<{ base64Data: string; mimeType: string }> = []
     if (logoImageBase64 && logoImageMime) {

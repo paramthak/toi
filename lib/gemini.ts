@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, GenerativeModel, Part } from '@google/generative-ai'
 import { META_PROMPT_ASSEMBLER_SYSTEM, BriefJSON, buildMetaPromptUserMessage } from './prompts/metaPromptAssembler'
 import { SCORING_SYSTEM_PROMPT } from './prompts/scoringPrompt'
+import { PROMPT_EVALUATOR_SYSTEM, PROMPT_REFINER_SYSTEM } from './prompts/promptEvaluator'
 
 let genAI: GoogleGenerativeAI | null = null
 
@@ -73,6 +74,100 @@ export async function assemblMetaPrompt(
 
   const result = await model.generateContent(parts)
   return result.response.text()
+}
+
+// ─── Prompt Evaluator + Refiner (text-only, pre-image-gen quality gate) ─────
+
+interface PromptEvalResult {
+  score: number
+  passed: boolean
+  weaknesses: string[]
+  quick_fixes: string[]
+}
+
+async function evaluatePrompt(prompt: string, logoProvided: boolean): Promise<PromptEvalResult> {
+  const ai = getGenAI()
+  const model = ai.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    systemInstruction: PROMPT_EVALUATOR_SYSTEM,
+  })
+  const input = logoProvided ? `[LOGO IS PROVIDED IN THIS BRIEF]\n\n${prompt}` : prompt
+  const result = await model.generateContent(input)
+  const text = result.response.text()
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) return { score: 0, passed: false, weaknesses: ['Evaluator returned no JSON'], quick_fixes: [] }
+  return JSON.parse(jsonMatch[0]) as PromptEvalResult
+}
+
+async function refinePrompt(
+  prompt: string,
+  weaknesses: string[],
+  quick_fixes: string[],
+  brief: BriefJSON
+): Promise<string> {
+  const ai = getGenAI()
+  const model = ai.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    systemInstruction: PROMPT_REFINER_SYSTEM,
+  })
+  const fixes = weaknesses.map((w, i) => `• ${w}\n  FIX: ${quick_fixes[i] || 'Address this weakness'}`).join('\n')
+  const context = JSON.stringify({ hook_concept: brief.hook_concept, archetype: brief.archetype, cta_text: brief.cta_text, emotional_lane: brief.emotional_lane }, null, 2)
+  const input = `CURRENT PROMPT:\n${prompt}\n\nWEAKNESSES TO FIX:\n${fixes}\n\nBRIEF CONTEXT:\n${context}`
+  const result = await model.generateContent(input)
+  return result.response.text()
+}
+
+/**
+ * Assembles a meta-prompt with a text-only eval-refine loop.
+ * Runs up to EVAL_MAX_ITERATIONS (default 1 for Railway safety).
+ * Each eval/refine step has a hard timeout — if exceeded, uses current prompt.
+ * After maxIterations, always sends whatever prompt we have to the image model.
+ */
+const EVAL_MAX_ITERATIONS = process.env.EVAL_MAX_ITERATIONS
+  ? parseInt(process.env.EVAL_MAX_ITERATIONS, 10)
+  : 1
+
+export async function assemblMetaPromptWithEval(
+  brief: BriefJSON,
+  productImageBase64?: string,
+  productImageMime?: string,
+  logoProvided?: boolean
+): Promise<string> {
+  let prompt = await assemblMetaPrompt(brief, productImageBase64, productImageMime)
+
+  for (let i = 0; i < EVAL_MAX_ITERATIONS; i++) {
+    let evalResult: PromptEvalResult
+    try {
+      evalResult = await Promise.race([
+        evaluatePrompt(prompt, logoProvided ?? false),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('eval_timeout')), 5000)
+        ),
+      ])
+    } catch (err) {
+      console.log(`[PromptEval] iteration ${i + 1} eval skipped:`, err instanceof Error ? err.message : err)
+      break
+    }
+
+    console.log(`[PromptEval] iteration ${i + 1}: score=${evalResult.score}, passed=${evalResult.passed}`)
+
+    if (evalResult.passed) break
+    if (i === EVAL_MAX_ITERATIONS - 1) break // Last attempt — use current prompt as-is
+
+    try {
+      prompt = await Promise.race([
+        refinePrompt(prompt, evalResult.weaknesses, evalResult.quick_fixes, brief),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('refine_timeout')), 8000)
+        ),
+      ])
+    } catch (err) {
+      console.log(`[PromptEval] iteration ${i + 1} refine skipped:`, err instanceof Error ? err.message : err)
+      break
+    }
+  }
+
+  return prompt
 }
 
 // ─── Image Generation (gemini-3-pro-image-preview) ──────────────────────────
