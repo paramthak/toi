@@ -107,6 +107,9 @@ When a human subject appears in the image, apply these MANDATORY parameters:
   texture — NOT CGI or wig-like.
 - BODY LANGUAGE: Natural posture with weight. Clothing has natural wrinkles and
   folds. Not stiff or stock-photo posed.
+- DEVICE HANDLING: If a phone or tablet is shown, it MUST be held upright with the
+  screen facing the viewer and the camera/notch at the top. Never show a device
+  held upside down, sideways, or at an angle that obscures the screen.
 - ABSOLUTE STANDARD: This person MUST look like they were photographed by a
   professional photojournalist with a medium-format camera. If the output would look
   AI-generated, add grain (ISO 400-800), reduce sharpness slightly, add natural
@@ -120,11 +123,13 @@ If brand_constraints mentions "LOGO INPUT PROVIDED" or "Logo image provided as
 reference input", include this EXACT instruction in your output prompt:
 
 "The brand logo has been provided as a visual reference input image. EMBED the
-exact provided logo in the bottom-right corner of the composition. Preserve its
-exact colors, proportions, and shape without modification. Scale to approximately
-10-12% of the frame width. If the background behind the logo position would make
-it illegible, add a small semi-transparent white or dark background pad (12px
-padding) behind the logo. The logo must be clearly identifiable."
+exact provided logo in the BOTTOM-LEFT corner of the composition (NOT bottom-right
+— bottom-left is reserved for the brand logo). Preserve its exact colors,
+proportions, and shape without modification. Scale to approximately 10-12% of
+the frame width. If the background behind the logo position would make it
+illegible, add a small semi-transparent white or dark background pad (12px
+padding) behind the logo. The logo must be clearly identifiable. The CTA button
+goes in the bottom-right quadrant — keep the logo and CTA in their separate corners."
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ARCHETYPE-SPECIFIC DIRECTIVES

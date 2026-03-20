@@ -31,12 +31,13 @@ No commentary, no explanation outside the JSON structure.
   "improvement_tips": [
     {
       "priority": 1,
-      "tip": "<plain language instruction — specific, visual, actionable. No jargon. Max 2 sentences.>",
+      "tip": "<ONE sentence max — specific, visual, actionable. Name the exact change needed.>",
       "impact": "<High|Medium|Low>",
-      "factor": "<which scoring factor this addresses>"
+      "factor": "<which scoring factor this addresses>",
+      "prompt_addition": "<exact text to add to the image generation prompt to fix this issue — 1-2 sentences, ready to copy-paste>"
     }
   ],
-  "scroll_stop_diagnosis": "<1-2 sentences on why the creative does or does not stop the scroll>"
+  "scroll_stop_diagnosis": "<1 sentence on why the creative does or does not stop the scroll>"
 }
 
 SCORING RULES:
@@ -50,8 +51,22 @@ SCORING RULES:
   baseline is 65 — do not penalise to 0
 - Score Platform Fit against the declared placement in the brief
 - All scores must be integers 0-100 except gate scores which are floats 0.0-1.0
-- Return 2-4 improvement tips ordered by priority. Only include tips where score < 85 for that factor.
+- Return EXACTLY 5-7 improvement tips ordered by priority (most impactful first).
+  Include tips for ANY factor below 90, and always include scroll-stop tips if gate failed.
+- Each tip MUST be ONE sentence maximum. No filler, no preamble.
+- Each tip MUST have a prompt_addition — the exact phrase a user would add to the
+  generation prompt to fix the issue. Make it specific and copy-paste ready.
 - Tips must be specific to THIS creative — not generic advice.
+
+SCORE LABEL RULES (MUST match these exact thresholds — do not use your own judgment):
+- final_score >= 90 → "Elite"
+- final_score >= 80 → "Launch Ready"
+- final_score >= 75 → "Conditional Launch"
+- final_score >= 65 → "Revise First"
+- final_score >= 50 → "Significant Rebuild"
+- final_score < 50  → "Do Not Launch"
+Note: If gate_passed is false, final_score is capped at 45, so score_label will always
+be "Do Not Launch" when gate fails.
 
 TWO-TIER FORMULA:
 Tier 1 — ScrollStop Gate:

@@ -24,17 +24,6 @@ const ASPECT_RATIOS = [
   { value: '1:1', label: 'Reels Cover (1:1)', sublabel: '1080×1080' },
 ]
 
-const ARCHETYPE_WHY: Record<string, string> = {
-  UGC_STYLE: 'The authentic UGC aesthetic lowers ad guards. Viewers engage with it like organic content, not an ad.',
-  HIGH_INFORMATION: 'Feature-dense layout answers objections upfront. Works for problem-aware audiences in decision mode.',
-  BEFORE_AFTER: 'Visual contrast between pain and resolution creates an emotional gap that drives clicks.',
-  MINIMALIST: 'Visual isolation forces attention. Cognitive relief in a busy feed.',
-  TESTIMONIAL_SCREENSHOT: 'Screenshot-style social proof feels real. Specific numbers and language build instant credibility.',
-  UGLY_ANTI_DESIGN: 'Deliberate imperfection signals authenticity. Skeptical audiences trust what looks unmanipulated.',
-  PATTERN_INTERRUPT: 'Visual anomaly triggers involuntary attention arrest. Maximum scroll-stop.',
-  MEME_IFIED: 'Familiar formats lower cognitive load while hijacking existing emotional associations.',
-  AUTO_SELECT: 'The system selected the highest-performing pattern for this specific audience and product.',
-}
 
 interface GenerationResult {
   id: string
@@ -191,8 +180,6 @@ export default function ProductForm() {
   }
 
   const selected = generations[selectedIdx]
-  const selectedArchetypeKey = selected?.archetype || (archetype === 'AUTO' ? 'AUTO_SELECT' : archetype)
-  const whyItWorks = selected?.scoring ? ARCHETYPE_WHY[selectedArchetypeKey] || ARCHETYPE_WHY['AUTO_SELECT'] : null
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-20 md:pb-6">
@@ -484,24 +471,26 @@ export default function ProductForm() {
                     </a>
                   </div>
 
-                  {/* Why it works panel */}
-                  {whyItWorks && selected.scoring && (
-                    <div className="bg-indigo-950/40 border border-indigo-800/50 rounded-xl px-4 py-3">
-                      <p className="text-xs font-semibold text-indigo-400 mb-1">Why this creative is built to work</p>
-                      <p className="text-xs text-zinc-300 leading-relaxed">{whyItWorks}</p>
-                      {selected.scoring.improvement_tips?.[0] && (
-                        <p className="text-xs text-zinc-400 mt-2">
-                          <span className="text-amber-400 font-medium">Top improvement: </span>
-                          {selected.scoring.improvement_tips[0].tip}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
                   {(selected.scoring || selected.scoringLoading) && (
                     <ScoreCard
                       scoring={selected.scoring!}
                       loading={selected.scoringLoading && !selected.scoring}
+                      archetype={selected.archetype}
+                      generationId={selected.id}
+                      logoUrl={logoUrl || undefined}
+                      productPhotoUrl={productPhotoUrl || undefined}
+                      onRegenerate={(newImageUrl, newScoring) => {
+                        const newGen: GenerationResult = {
+                          id: `improved-${Date.now()}`,
+                          imageUrl: newImageUrl,
+                          aspectRatio: selected.aspectRatio,
+                          variantNumber: generations.length + 1,
+                          archetype: selected.archetype,
+                          scoring: newScoring,
+                        }
+                        setGenerations(prev => [...prev, newGen])
+                        setSelectedIdx(generations.length)
+                      }}
                     />
                   )}
                 </>

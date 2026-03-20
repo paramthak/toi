@@ -535,6 +535,9 @@ export default function ChatInterface({ preloadedBrief }: ChatInterfaceProps) {
               generations={generations}
               isGenerating={isGenerating}
               briefConcept={briefConcept}
+              logoUrl={logoUrl}
+              productPhotoUrl={productPhotoUrl}
+              onAddGeneration={gen => setGenerations(prev => [...prev, gen])}
             />
           </div>
         )}
@@ -547,6 +550,9 @@ export default function ChatInterface({ preloadedBrief }: ChatInterfaceProps) {
             generations={generations}
             isGenerating={isGenerating}
             briefConcept={briefConcept}
+            logoUrl={logoUrl}
+            productPhotoUrl={productPhotoUrl}
+            onAddGeneration={gen => setGenerations(prev => [...prev, gen])}
           />
         </div>
       )}

@@ -164,6 +164,7 @@ export interface ScoringResult {
     tip: string
     impact: string
     factor: string
+    prompt_addition: string
   }>
   scroll_stop_diagnosis: string
 }

@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/auth'
 import { scoreCreative } from '@/lib/gemini'
 import { readFileAsBase64, fileExists } from '@/lib/storage'
 import { query } from '@/lib/db'
+import { getScoreLabel } from '@/lib/prompts/scoringPrompt'
 import path from 'path'
 
 export async function POST(request: NextRequest) {
@@ -56,6 +57,9 @@ export async function POST(request: NextRequest) {
       mimeType,
       gen.brief_json as unknown as Parameters<typeof scoreCreative>[2]
     )
+
+    // Override AI-generated label with formula-derived one to ensure consistency
+    scoring.score_label = getScoreLabel(scoring.final_score)
 
     // Save score to DB
     await query(

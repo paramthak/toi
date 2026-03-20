@@ -22,9 +22,12 @@ interface CreativeOutputProps {
   generations: Generation[]
   isGenerating: boolean
   briefConcept?: string
+  logoUrl?: string | null
+  productPhotoUrl?: string | null
+  onAddGeneration?: (gen: Generation) => void
 }
 
-export default function CreativeOutput({ generations, isGenerating, briefConcept }: CreativeOutputProps) {
+export default function CreativeOutput({ generations, isGenerating, briefConcept, logoUrl, productPhotoUrl, onAddGeneration }: CreativeOutputProps) {
   const [selectedIdx, setSelectedIdx] = useState(0)
 
   useEffect(() => {
@@ -122,6 +125,22 @@ export default function CreativeOutput({ generations, isGenerating, briefConcept
         <ScoreCard
           scoring={selected.scoring!}
           loading={selected.scoringLoading && !selected.scoring}
+          archetype={selected.archetype}
+          generationId={selected.id}
+          logoUrl={logoUrl || undefined}
+          productPhotoUrl={productPhotoUrl || undefined}
+          onRegenerate={(newImageUrl, newScoring) => {
+            const newGen: Generation = {
+              id: `improved-${Date.now()}`,
+              imageUrl: newImageUrl,
+              metaPrompt: '',
+              archetype: selected.archetype,
+              aspectRatio: selected.aspectRatio,
+              variantNumber: generations.length + 1,
+              scoring: newScoring,
+            }
+            onAddGeneration?.(newGen)
+          }}
         />
       )}
       {selected.scoringError && !selected.scoring && (
