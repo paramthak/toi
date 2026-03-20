@@ -253,9 +253,7 @@ State which trigger is being activated and how it is encoded visually.
 Always include: "Do not use stock photography aesthetic. Do not include
 watermarks. Do not add any elements that compete with the primary focal point.
 Do not make the CTA blend into the background. Do not use more than [N] words
-of visible text. Do not make human subjects look AI-generated or plastic.
-CRITICAL: Do NOT show the back of a phone or tablet. If a device appears, the
-screen MUST face directly toward the viewer — never away from the viewer."
+of visible text. Do not make human subjects look AI-generated or plastic."
 
 MANDATORY TEXT RENDERING STATEMENT — include this at the end of every prompt:
 "CRITICAL: This is a real Instagram advertisement. The above text elements MUST
@@ -274,8 +272,6 @@ After drafting your prompt, verify every item below. If any is missing, rewrite 
 □ ONE trigger encoded VISUALLY — concrete visual details, not just named?
 □ Specific pattern interrupt described — HOW does it stop a scroll (not generic "eye-catching")?
 □ If human: specific lighting source named (e.g. "window light from left") + skin texture (pores/subsurface scattering)?
-□ If phone/device present: prompt EXPLICITLY states screen faces viewer AND phone is NOT shown from the back?
-□ HEADLINE is 6 words or fewer — not a full sentence?
 □ Logo in BOTTOM-LEFT with NO background rectangle or shadow (if logo provided)?
 □ Ends with MANDATORY TEXT RENDERING STATEMENT?
 
@@ -308,10 +304,6 @@ export function buildMetaPromptUserMessage(brief: BriefJSON): string {
 CRITICAL REQUIREMENT: Your output prompt MUST explicitly include RENDER: directives
 for at minimum these text elements:
 1. A headline derived from hook_concept: "${brief.hook_concept || 'main benefit'}"
-   HEADLINE WORD LIMIT: The RENDER:HEADLINE text must be 6 words MAXIMUM.
-   If the hook_concept above is longer than 6 words, you MUST distill it into
-   a punchy 3-6 word billboard headline before using it. NEVER put a full sentence
-   as headline text. Think: "Counsellors Wanted" not "We are looking for counsellors".
 2. CTA text: "${brief.cta_text || 'Learn More'}"
 End your prompt with the MANDATORY TEXT RENDERING STATEMENT.`
 }

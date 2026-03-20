@@ -23,10 +23,6 @@ SCORING (award points when criterion is met):
 +5   FOCUS:       A single dominant focal point is described — NOT two or three competing elements
 +5   NEGATIVES:   Prompt includes "Do not use stock photography aesthetic" AND "Do not include watermarks"
 
-PENALTIES (deduct AFTER calculating points above):
--15  VERBOSE_HEADLINE: Deduct 15 points if the RENDER:HEADLINE text is longer than 7 words. Count the words in the quoted headline text — a headline like "Empower global students: Leap Scholar seeks 0-2 year experienced study abroad counsellors" is a FAILING verbose headline (full sentence). A passing headline is 3-6 words: "Counsellors Wanted", "Join Our Team", "Shape Student Futures".
--15  PHONE_BACK: Deduct 15 points if a phone/device is shown but the prompt does NOT explicitly state the screen faces toward the viewer, OR if the prompt describes the person holding the phone in a way that would show the back of the device.
-
 PASS THRESHOLD: 88+
 
 Return this exact JSON shape (no other text):
