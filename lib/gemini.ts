@@ -119,33 +119,32 @@ async function refinePrompt(
 
 /**
  * Assembles a meta-prompt with a text-only eval-refine loop.
- * Runs up to EVAL_MAX_ITERATIONS (default 1 for Railway safety).
- * Each eval/refine step has a hard timeout — if exceeded, uses current prompt.
+ * Runs up to EVAL_MAX_ITERATIONS (default 3, override via env var).
  * After maxIterations, always sends whatever prompt we have to the image model.
+ * statusCallback receives granular status messages for SSE streaming.
  */
 const EVAL_MAX_ITERATIONS = process.env.EVAL_MAX_ITERATIONS
   ? parseInt(process.env.EVAL_MAX_ITERATIONS, 10)
-  : 1
+  : 3
 
 export async function assemblMetaPromptWithEval(
   brief: BriefJSON,
   productImageBase64?: string,
   productImageMime?: string,
-  logoProvided?: boolean
+  logoProvided?: boolean,
+  statusCallback?: (msg: string) => void
 ): Promise<string> {
+  statusCallback?.('Writing image prompt...')
   let prompt = await assemblMetaPrompt(brief, productImageBase64, productImageMime)
 
   for (let i = 0; i < EVAL_MAX_ITERATIONS; i++) {
     let evalResult: PromptEvalResult
     try {
-      evalResult = await Promise.race([
-        evaluatePrompt(prompt, logoProvided ?? false),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('eval_timeout')), 5000)
-        ),
-      ])
+      statusCallback?.(`Evaluating prompt quality (${i + 1}/${EVAL_MAX_ITERATIONS})...`)
+      evalResult = await evaluatePrompt(prompt, logoProvided ?? false)
+      statusCallback?.(`Prompt score: ${evalResult.score}/100${evalResult.passed ? ' ✓' : ` — refining...`}`)
     } catch (err) {
-      console.log(`[PromptEval] iteration ${i + 1} eval skipped:`, err instanceof Error ? err.message : err)
+      console.log(`[PromptEval] iteration ${i + 1} eval failed:`, err instanceof Error ? err.message : err)
       break
     }
 
@@ -155,14 +154,9 @@ export async function assemblMetaPromptWithEval(
     if (i === EVAL_MAX_ITERATIONS - 1) break // Last attempt — use current prompt as-is
 
     try {
-      prompt = await Promise.race([
-        refinePrompt(prompt, evalResult.weaknesses, evalResult.quick_fixes, brief),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('refine_timeout')), 8000)
-        ),
-      ])
+      prompt = await refinePrompt(prompt, evalResult.weaknesses, evalResult.quick_fixes, brief)
     } catch (err) {
-      console.log(`[PromptEval] iteration ${i + 1} refine skipped:`, err instanceof Error ? err.message : err)
+      console.log(`[PromptEval] iteration ${i + 1} refine failed:`, err instanceof Error ? err.message : err)
       break
     }
   }

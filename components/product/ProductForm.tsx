@@ -47,7 +47,9 @@ export default function ProductForm() {
   const [productPhotoUrl, setProductPhotoUrl] = useState<string | null>(null)
   const [productPhotoUploading, setProductPhotoUploading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [generatingStatus, setGeneratingStatus] = useState('')
   const [regeneratingImproved, setRegeneratingImproved] = useState(false)
+  const [regenStatus, setRegenStatus] = useState('')
   const [generations, setGenerations] = useState<GenerationResult[]>([])
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -110,7 +112,9 @@ export default function ProductForm() {
     if (Object.keys(errs).length > 0) return
 
     setGenerating(true)
+    setGeneratingStatus('')
     setGenerations([])
+    setSelectedIdx(0)
 
     const selectedArchetype = archetype === 'AUTO' ? 'AUTO_SELECT' : archetype
 
@@ -135,24 +139,51 @@ export default function ProductForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ brief, variantCount, logoUrl, productPhotoUrl }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
 
-      const gens: GenerationResult[] = data.generations.map((g: GenerationResult) => ({
-        ...g,
-        archetype: selectedArchetype,
-        scoringLoading: true,
-      }))
-      setGenerations(gens)
-      setSelectedIdx(0)
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Generation failed')
+      }
 
-      for (const gen of data.generations) {
-        scoreGen(gen.id)
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6)) as { type: string; [key: string]: unknown }
+            if (event.type === 'status') {
+              setGeneratingStatus(event.message as string)
+            } else if (event.type === 'generation') {
+              const g = event.data as GenerationResult
+              const newGen: GenerationResult = { ...g, archetype: selectedArchetype, scoringLoading: true }
+              setGenerations(prev => {
+                const next = [...prev, newGen]
+                setSelectedIdx(next.length - 1)
+                return next
+              })
+              scoreGen(g.id)
+            } else if (event.type === 'error') {
+              throw new Error((event.error as string) || 'Generation failed')
+            }
+          } catch (parseErr) {
+            if (parseErr instanceof SyntaxError) continue
+            throw parseErr
+          }
+        }
       }
     } catch (err) {
       setErrors({ submit: err instanceof Error ? err.message : 'Generation failed' })
     } finally {
       setGenerating(false)
+      setGeneratingStatus('')
     }
   }
 
@@ -419,22 +450,32 @@ export default function ProductForm() {
 
         {/* Right — output */}
         <div className="space-y-4">
-          {(generating && generations.length === 0) || regeneratingImproved ? (
-            <div className={cn(
-              'relative w-full rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800',
-              regeneratingImproved && selected
-                ? (selected.aspectRatio === '9:16' ? 'aspect-[9/16]' : selected.aspectRatio === '1:1' ? 'aspect-square' : 'aspect-[4/5]')
-                : 'aspect-[4/5]'
-            )}>
+          {/* Regenerating status bar — shown above existing variants, doesn't hide them */}
+          {regeneratingImproved && (
+            <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
+              <svg className="w-4 h-4 animate-spin flex-shrink-0 text-indigo-400" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-xs text-zinc-400 truncate">{regenStatus || 'Applying improvements...'}</span>
+            </div>
+          )}
+
+          {/* Initial generation shimmer — only when no generations exist yet */}
+          {generating && generations.length === 0 && (
+            <div className="relative w-full rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800 aspect-[4/5]">
               <div className="shimmer absolute inset-0" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4">
                 <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                {regeneratingImproved && <p className="text-zinc-400 text-xs mt-1">Applying improvements...</p>}
+                {generatingStatus && (
+                  <p className="text-zinc-400 text-xs mt-1 text-center">{generatingStatus}</p>
+                )}
               </div>
             </div>
-          ) : null}
+          )}
 
-          {generations.length > 0 && !regeneratingImproved && (
+          {/* Generations list — always visible when present */}
+          {generations.length > 0 && (
             <>
               {generations.length > 1 && (
                 <div className="flex gap-2 flex-wrap">
@@ -450,6 +491,17 @@ export default function ProductForm() {
                       Variant {gen.variantNumber}
                     </button>
                   ))}
+                </div>
+              )}
+
+              {/* Status text during multi-variant generation (after first arrives) */}
+              {generating && generatingStatus && (
+                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                  <svg className="w-3 h-3 animate-spin flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span className="truncate">{generatingStatus}</span>
                 </div>
               )}
 
@@ -478,7 +530,7 @@ export default function ProductForm() {
                     </a>
                   </div>
 
-                  {(selected.scoring || selected.scoringLoading) && (
+                  {(selected.scoring || selected.scoringLoading) && !regeneratingImproved && (
                     <ScoreCard
                       scoring={selected.scoring!}
                       loading={selected.scoringLoading && !selected.scoring}
@@ -487,8 +539,10 @@ export default function ProductForm() {
                       logoUrl={logoUrl || undefined}
                       productPhotoUrl={productPhotoUrl || undefined}
                       onRegenerateStart={() => setRegeneratingImproved(true)}
+                      onRegenStatus={setRegenStatus}
                       onRegenerate={(newGenId, newImageUrl) => {
                         setRegeneratingImproved(false)
+                        setRegenStatus('')
                         const newGen: GenerationResult = {
                           id: newGenId,
                           imageUrl: newImageUrl,

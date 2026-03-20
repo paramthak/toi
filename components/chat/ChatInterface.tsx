@@ -169,25 +169,46 @@ export default function ChatInterface({ preloadedBrief }: ChatInterfaceProps) {
         body: JSON.stringify({ sessionId, brief, variantCount: 1, logoUrl, productPhotoUrl }),
       })
 
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Generation failed')
-
-      setSessionId(data.sessionId)
-      const newGens: Generation[] = data.generations.map((g: Generation) => ({
-        ...g,
-        scoringLoading: true,
-        brief,
-      }))
-      setGenerations(prev => [...prev, ...newGens])
-
-      // Show inline image message in chat
-      if (data.generations?.[0]?.imageUrl) {
-        addAssistantMessage('Your creative is ready! Scoring it now...', data.generations[0].imageUrl)
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Generation failed')
       }
 
-      // Score each generation in background
-      for (const gen of data.generations) {
-        scoreGeneration(gen.id, brief)
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let firstGenShown = false
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6)) as { type: string; [key: string]: unknown }
+            if (event.type === 'done') {
+              const sid = event.sessionId as string | undefined
+              if (sid) setSessionId(sid)
+            } else if (event.type === 'generation') {
+              const g = event.data as Generation
+              const newGen: Generation = { ...g, scoringLoading: true, brief }
+              setGenerations(prev => [...prev, newGen])
+              if (!firstGenShown) {
+                firstGenShown = true
+                addAssistantMessage('Your creative is ready! Scoring it now...', g.imageUrl)
+              }
+              scoreGeneration(g.id, brief)
+            } else if (event.type === 'error') {
+              throw new Error((event.error as string) || 'Generation failed')
+            }
+          } catch (parseErr) {
+            if (parseErr instanceof SyntaxError) continue
+            throw parseErr
+          }
+        }
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Generation failed'

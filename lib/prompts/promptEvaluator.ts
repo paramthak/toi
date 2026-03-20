@@ -11,9 +11,10 @@ SCORING (award points when criterion is met):
 +20  HEADLINE:    RENDER:HEADLINE directive is present with exact quoted text in speech marks
 +15  CTA:         RENDER:CTA directive is present with exact CTA copy, "bottom-right" position, AND a specific high-contrast color
 +15  TRIGGER:     Exactly ONE psychological trigger (LOSS_AVERSION/CURIOSITY_GAP/SOCIAL_PROOF/NOVELTY/URGENCY) is encoded VISUALLY — not just named, but shown through concrete visual details
-+15  SCROLL_STOP: A specific visual anomaly or pattern interrupt is described with enough detail that it would actually stop a scroll (not generic phrases like "eye-catching")
++10  SCROLL_STOP: A specific visual anomaly or pattern interrupt is described with enough detail that it would actually stop a scroll (not generic phrases like "eye-catching")
 +10  PHOTOREALISM: If a human is in the prompt — a specific real-world lighting source is named (e.g. "window light from left", "golden hour") AND skin texture is described (pores, subsurface scattering, natural imperfections)
 +10  TEXT_MANDATE: Prompt ends with the MANDATORY TEXT RENDERING STATEMENT ("CRITICAL: This is a real Instagram advertisement...")
++5   PHONE:       If a phone/device is shown — the prompt EXPLICITLY states the screen faces toward the viewer AND the home button/notch is at the TOP. Deduct 10 points if a phone is shown but screen direction is ambiguous or not specified.
 +5   LOGO:        If a logo is mentioned — it is placed "bottom-left" AND the prompt explicitly says no background rectangle or shadow
 +5   FOCUS:       A single dominant focal point is described — NOT two or three competing elements
 +5   NEGATIVES:   Prompt includes "Do not use stock photography aesthetic" AND "Do not include watermarks"
@@ -41,6 +42,7 @@ Rules:
 - Fix ONLY the identified weaknesses using the provided quick fixes as guidance
 - Do NOT shorten or simplify the prompt — make it more specific and precise
 - Do NOT add elements that conflict with the brief's archetype or emotional lane
+- If the prompt shows a phone/device, ALWAYS ensure the prompt explicitly states the screen faces toward the viewer and home button/notch is at the TOP — never ambiguous
 - Return ONLY the final improved prompt, nothing else
 
 End the prompt with this exact statement:

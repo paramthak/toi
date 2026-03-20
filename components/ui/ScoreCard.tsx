@@ -64,6 +64,7 @@ interface ScoreCardProps {
   productPhotoUrl?: string
   onRegenerateStart?: () => void
   onRegenerate?: (generationId: string, imageUrl: string) => void
+  onRegenStatus?: (msg: string) => void
 }
 
 export default function ScoreCard({
@@ -75,8 +76,10 @@ export default function ScoreCard({
   productPhotoUrl,
   onRegenerateStart,
   onRegenerate,
+  onRegenStatus,
 }: ScoreCardProps) {
   const [regenerating, setRegenerating] = useState(false)
+  const [regenStatus, setRegenStatus] = useState('')
   const [regenerateError, setRegenerateError] = useState<string | null>(null)
 
   if (loading) {
@@ -110,21 +113,57 @@ export default function ScoreCard({
   async function handleRegenerate() {
     if (!generationId) return
     setRegenerating(true)
+    setRegenStatus('')
     setRegenerateError(null)
     onRegenerateStart?.()
+
     try {
       const res = await fetch('/api/regenerate-improved', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ generationId, logoUrl, productPhotoUrl }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      onRegenerate?.(data.generationId, data.imageUrl)
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Regeneration failed')
+      }
+
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6)) as { type: string; [key: string]: unknown }
+            if (event.type === 'status') {
+              const msg = event.message as string
+              setRegenStatus(msg)
+              onRegenStatus?.(msg)
+            } else if (event.type === 'generation') {
+              const data = event.data as { generationId: string; imageUrl: string }
+              onRegenerate?.(data.generationId, data.imageUrl)
+            } else if (event.type === 'error') {
+              throw new Error((event.error as string) || 'Regeneration failed')
+            }
+          } catch (parseErr) {
+            if (parseErr instanceof SyntaxError) continue
+            throw parseErr
+          }
+        }
+      }
     } catch (err) {
       setRegenerateError(err instanceof Error ? err.message : 'Regeneration failed')
     } finally {
       setRegenerating(false)
+      setRegenStatus('')
     }
   }
 
@@ -306,11 +345,11 @@ export default function ScoreCard({
           >
             {regenerating ? (
               <>
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <svg className="w-4 h-4 animate-spin flex-shrink-0" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Regenerating with improvements...
+                <span className="truncate">{regenStatus || 'Regenerating with improvements...'}</span>
               </>
             ) : (
               <>
