@@ -43,37 +43,6 @@ export async function sendChatMessage(
   return result.response.text()
 }
 
-// ─── Brief Enrichment (derives hook_concept + trigger from persona + product) ─
-
-export async function enrichBriefWithConcepts(brief: BriefJSON): Promise<{ hook_concept: string; psychological_trigger: string }> {
-  const ai = getGenAI()
-  const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' })
-  const result = await model.generateContent(
-    `You are a creative strategist for Instagram advertising.
-
-Given the brief below, derive:
-1. hook_concept: A SPECIFIC, concrete creative hook for the ad headline. It must reference the actual product/offer/action — NOT generic phrases like "Study Abroad" or "Learn More". Be direct about what the ad is selling or promoting. One sentence, action-oriented, punchy.
-2. psychological_trigger: Exactly one of: LOSS_AVERSION, CURIOSITY_GAP, SOCIAL_PROOF, NOVELTY, URGENCY — whichever best fits the product and persona.
-
-Brief:
-- Product/Offer: ${brief.product}
-- Target Persona: ${brief.persona}
-- CTA: ${brief.cta_text}
-- Platform: ${brief.platform}
-
-Return ONLY valid JSON with no other text:
-{"hook_concept": "...", "psychological_trigger": "..."}`
-  )
-  const text = result.response.text()
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) return { hook_concept: brief.product.slice(0, 120), psychological_trigger: 'CURIOSITY_GAP' }
-  try {
-    return JSON.parse(jsonMatch[0]) as { hook_concept: string; psychological_trigger: string }
-  } catch {
-    return { hook_concept: brief.product.slice(0, 120), psychological_trigger: 'CURIOSITY_GAP' }
-  }
-}
-
 // ─── Meta Prompt Assembly (Gemini Flash) ────────────────────────────────────
 
 export async function assemblMetaPrompt(
@@ -116,17 +85,13 @@ interface PromptEvalResult {
   quick_fixes: string[]
 }
 
-async function evaluatePrompt(prompt: string, logoProvided: boolean, brief?: BriefJSON): Promise<PromptEvalResult> {
+async function evaluatePrompt(prompt: string, logoProvided: boolean): Promise<PromptEvalResult> {
   const ai = getGenAI()
   const model = ai.getGenerativeModel({
     model: 'gemini-2.5-flash',
     systemInstruction: PROMPT_EVALUATOR_SYSTEM,
   })
-  const briefContext = brief
-    ? `BRIEF CONTEXT:\n${JSON.stringify({ persona: brief.persona, product: brief.product, hook_concept: brief.hook_concept, cta_text: brief.cta_text }, null, 2)}\n\n`
-    : ''
-  const logoNote = logoProvided ? '[LOGO IS PROVIDED IN THIS BRIEF]\n\n' : ''
-  const input = `${logoNote}${briefContext}PROMPT TO EVALUATE:\n${prompt}`
+  const input = logoProvided ? `[LOGO IS PROVIDED IN THIS BRIEF]\n\n${prompt}` : prompt
   const result = await model.generateContent(input)
   const text = result.response.text()
   const jsonMatch = text.match(/\{[\s\S]*\}/)
@@ -176,7 +141,7 @@ export async function assemblMetaPromptWithEval(
     let evalResult: PromptEvalResult
     try {
       statusCallback?.(`Evaluating prompt quality (${i + 1}/${EVAL_MAX_ITERATIONS})...`)
-      evalResult = await evaluatePrompt(prompt, logoProvided ?? false, brief)
+      evalResult = await evaluatePrompt(prompt, logoProvided ?? false)
       statusCallback?.(`Prompt score: ${evalResult.score}/100${evalResult.passed ? ' ✓' : ` — refining...`}`)
     } catch (err) {
       console.log(`[PromptEval] iteration ${i + 1} eval failed:`, err instanceof Error ? err.message : err)

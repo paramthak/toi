@@ -530,7 +530,7 @@ export default function ProductForm() {
                     </a>
                   </div>
 
-                  {(selected.scoring || selected.scoringLoading) && (
+                  {(selected.scoring || selected.scoringLoading) && !regeneratingImproved && (
                     <ScoreCard
                       scoring={selected.scoring!}
                       loading={selected.scoringLoading && !selected.scoring}
