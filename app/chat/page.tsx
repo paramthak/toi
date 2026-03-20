@@ -14,9 +14,15 @@ export default async function ChatPage({ searchParams }: Props) {
   let preloadedBrief = undefined
   if (searchParams.brief) {
     try {
-      preloadedBrief = JSON.parse(decodeURIComponent(searchParams.brief))
+      // Support both plain JSON and URL-encoded JSON (from library iterate)
+      const raw = searchParams.brief
+      preloadedBrief = JSON.parse(decodeURIComponent(raw))
     } catch {
-      // ignore malformed brief
+      try {
+        preloadedBrief = JSON.parse(searchParams.brief)
+      } catch {
+        // ignore malformed brief
+      }
     }
   }
 

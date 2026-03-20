@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth'
 import { assemblMetaPrompt, generateImage } from '@/lib/gemini'
-import { saveBase64Image } from '@/lib/storage'
+import { saveBase64Image, fileExists, readFileAsBase64 } from '@/lib/storage'
+import path from 'path'
 import { query } from '@/lib/db'
 import { BriefJSON } from '@/lib/prompts/metaPromptAssembler'
 
@@ -27,15 +28,41 @@ export async function POST(request: NextRequest) {
       brief,
       variantCount = 1,
       logoUrl,
+      productPhotoUrl,
     } = await request.json() as {
       sessionId: string
       brief: BriefJSON
       variantCount: number
       logoUrl?: string
+      productPhotoUrl?: string
     }
 
     if (!brief) {
       return NextResponse.json({ error: 'Brief required' }, { status: 400 })
+    }
+
+    // Load product photo for vision-assisted prompt assembly
+    let productImageBase64: string | undefined
+    let productImageMime: string | undefined
+    if (productPhotoUrl) {
+      const filename = path.basename(productPhotoUrl)
+      if (fileExists(filename)) {
+        productImageBase64 = readFileAsBase64(filename)
+        const ext = path.extname(filename).toLowerCase().replace('.', '')
+        productImageMime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`
+      }
+    }
+
+    // Load logo for direct embedding as input image (raster only — SVG unsupported)
+    let logoImageBase64: string | undefined
+    let logoImageMime: string | undefined
+    if (logoUrl) {
+      const logoFilename = path.basename(logoUrl)
+      const logoExt = path.extname(logoFilename).toLowerCase().replace('.', '')
+      if (logoExt !== 'svg' && fileExists(logoFilename)) {
+        logoImageBase64 = readFileAsBase64(logoFilename)
+        logoImageMime = logoExt === 'jpg' || logoExt === 'jpeg' ? 'image/jpeg' : 'image/png'
+      }
     }
 
     // Validate sessionId or create a session
@@ -64,20 +91,35 @@ export async function POST(request: NextRequest) {
         variantBrief.variant_instruction = `Variant ${i} of ${variantCount}: ${VARIATION_DIRECTIVES[i] || VARIATION_DIRECTIVES[6]}`
       }
 
-      // Add logo context if available
-      if (logoUrl) {
-        variantBrief.brand_constraints = `${variantBrief.brand_constraints || ''}. Logo available at: ${logoUrl} — place in bottom corner.`
+      // Update brand_constraints to reference logo as provided input image
+      if (logoImageBase64) {
+        variantBrief.brand_constraints = `${variantBrief.brand_constraints || 'none'}. LOGO INPUT PROVIDED: The brand logo has been provided as a visual reference image input. Embed the exact provided logo in the bottom-right corner of the final image, at approximately 10-12% of frame width. Preserve its exact colors and shape. Add a subtle background pad for legibility if needed.`
+      } else if (logoUrl) {
+        // SVG fallback: text-only instruction
+        variantBrief.brand_constraints = `${variantBrief.brand_constraints || 'none'}. Place brand logo in bottom-right corner.`
       }
 
-      // Assemble meta prompt
-      const metaPrompt = await assemblMetaPrompt(variantBrief)
+      // Assemble meta prompt (with optional product photo for vision context)
+      const metaPrompt = await assemblMetaPrompt(variantBrief, productImageBase64, productImageMime)
 
-      // Generate image — retry once on failure
+      // Build input images for image generation (logo first, then product)
+      const inputImages: Array<{ base64Data: string; mimeType: string }> = []
+      if (logoImageBase64 && logoImageMime) {
+        inputImages.push({ base64Data: logoImageBase64, mimeType: logoImageMime })
+      }
+      if (productImageBase64 && productImageMime) {
+        inputImages.push({ base64Data: productImageBase64, mimeType: productImageMime })
+      }
+
+      // Generate image — retry once on failure with simplified brief
       let generatedImage
       let attempt = 0
       while (attempt < 2) {
         try {
-          generatedImage = await generateImage(metaPrompt)
+          generatedImage = await generateImage(
+            metaPrompt,
+            inputImages.length > 0 ? inputImages : undefined
+          )
           break
         } catch (err) {
           attempt++
@@ -91,18 +133,18 @@ export async function POST(request: NextRequest) {
 
       if (!generatedImage) throw new Error('Image generation returned null')
 
-      // Save image to storage
+      // Save image to storage (filesystem)
       const imageUrl = await saveBase64Image(
         generatedImage.base64Data,
         generatedImage.mimeType
       )
 
-      // Save generation record
+      // Save generation record with image_data for DB-backed persistence
       const aspectRatio = brief.aspect_ratios?.[0] || '4:5'
       const rows = await query<{ id: string }>(
         `INSERT INTO generations
-          (session_id, brief_json, archetype, meta_prompt, image_url, aspect_ratio, variant_number)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+          (session_id, brief_json, archetype, meta_prompt, image_url, aspect_ratio, variant_number, image_data)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
         [
           activeSessionId,
           JSON.stringify(variantBrief),
@@ -111,6 +153,7 @@ export async function POST(request: NextRequest) {
           imageUrl,
           aspectRatio,
           i,
+          generatedImage.base64Data,
         ]
       )
 

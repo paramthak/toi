@@ -44,14 +44,34 @@ export async function sendChatMessage(
 
 // ─── Meta Prompt Assembly (Gemini Flash) ────────────────────────────────────
 
-export async function assemblMetaPrompt(brief: BriefJSON): Promise<string> {
+export async function assemblMetaPrompt(
+  brief: BriefJSON,
+  productImageBase64?: string,
+  productImageMime?: string
+): Promise<string> {
   const ai = getGenAI()
   const model = ai.getGenerativeModel({
     model: 'gemini-2.5-flash',
     systemInstruction: META_PROMPT_ASSEMBLER_SYSTEM,
   })
 
-  const result = await model.generateContent(buildMetaPromptUserMessage(brief))
+  const parts: Part[] = []
+
+  if (productImageBase64 && productImageMime) {
+    parts.push({
+      inlineData: {
+        data: productImageBase64,
+        mimeType: productImageMime as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
+      },
+    })
+    parts.push({
+      text: `The image above is a product/app screenshot. Use it to inform visual composition, colors, and subject matter in your prompt output.\n\nBrief JSON:\n${buildMetaPromptUserMessage(brief)}`,
+    })
+  } else {
+    parts.push({ text: buildMetaPromptUserMessage(brief) })
+  }
+
+  const result = await model.generateContent(parts)
   return result.response.text()
 }
 
@@ -62,20 +82,48 @@ export interface GeneratedImage {
   mimeType: string
 }
 
-export async function generateImage(metaPrompt: string): Promise<GeneratedImage> {
+export interface InputImage {
+  base64Data: string
+  mimeType: string
+}
+
+export async function generateImage(
+  metaPrompt: string,
+  inputImages?: InputImage[]
+): Promise<GeneratedImage> {
   const ai = getGenAI()
   const model = ai.getGenerativeModel({ model: 'gemini-3-pro-image-preview' })
 
+  const parts: Part[] = []
+
+  // Add input reference images (logo, product photo) FIRST so the model sees them as context
+  if (inputImages && inputImages.length > 0) {
+    for (const img of inputImages) {
+      parts.push({
+        inlineData: {
+          data: img.base64Data,
+          mimeType: img.mimeType as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
+        },
+      })
+    }
+  }
+
+  // Append the meta-prompt with a mandatory text rendering suffix
+  const fullPrompt = metaPrompt +
+    '\n\nCRITICAL RENDERING MANDATE: This is a real Instagram advertisement. ALL text elements described above MUST be physically rendered as clearly readable text IN the generated image. Do not omit any text overlays. The headline, CTA button/text, and any specified copy must appear as legible characters in the final image. An ad without readable text cannot function.'
+
+  parts.push({ text: fullPrompt })
+
   const result = await model.generateContent({
-    contents: [{ role: 'user', parts: [{ text: metaPrompt }] }],
+    contents: [{ role: 'user', parts }],
     generationConfig: {
       // @ts-ignore — image generation response type
       responseModalities: ['image', 'text'],
     } as Record<string, unknown>,
   })
 
-  const parts = result.response.candidates?.[0]?.content?.parts ?? []
-  for (const part of parts) {
+  const responseParts = result.response.candidates?.[0]?.content?.parts ?? []
+  for (const part of responseParts) {
     // @ts-ignore — inlineData is present for image responses
     if (part.inlineData) {
       return {

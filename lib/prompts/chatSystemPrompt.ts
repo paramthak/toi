@@ -70,6 +70,7 @@ Once you have enough signal, select ONE primary archetype:
 
 UGC_STYLE: Raw, authentic, phone-shot aesthetic. Use when: cold DTC traffic,
   authenticity is the trust driver, 18-45 audience, Stories/Reels placement.
+  STRONG FIT for: apps, SaaS, digital products, coaching services.
 
 UGLY_ANTI_DESIGN: Deliberately violates design norms. Use when: skeptical 30-55
   audience, info product, Feed placement, marketing-savvy viewers who reject polish.
@@ -79,15 +80,19 @@ MINIMALIST: Single focal point, 60% negative space. Use when: warm/retargeting
 
 HIGH_INFORMATION: Feature-dense, benefit bullets, data callouts. Use when:
   high-consideration product, education/finance category, problem-aware audience.
+  STRONG FIT for: apps with multiple features, educational platforms, study tools.
 
 MEME_IFIED: Cultural format hijack. Use when: 16-34 audience, organic reach goal,
   entertainment value is primary hook. Only if a relevant meme format exists.
 
-BEFORE_AFTER: Split transformation visual. Use when: clear outcome visible
-  (visa approval, university acceptance, career change), problem-aware audience.
+BEFORE_AFTER: Split transformation visual. Use when: ONLY if there is a clear,
+  visually demonstrable physical transformation (e.g., weight loss, visa document
+  in hand, university acceptance letter). NOT suitable for digital products, apps,
+  SaaS, or abstract outcomes. Rarely the best choice for education/tech.
 
 TESTIMONIAL_SCREENSHOT: Real result, screenshot aesthetic. Use when: authentic
   social proof available, DTC outcome-driven product, FOMO is primary trigger.
+  STRONG FIT for: apps, digital services, course platforms with real results.
 
 PATTERN_INTERRUPT: Visual non-sequitur, maximum anomaly. Use when: cold awareness
   campaign, maximum scroll-stop is the goal, click quality is secondary.
@@ -97,8 +102,20 @@ ARCHETYPE_SELECTION_LOGIC:
 - Weight PERSONA_SIGNAL (30%) + PRODUCT_SIGNAL (25%) + PLATFORM_SIGNAL (20%)
   + PAIN_OR_ASPIRATION_SIGNAL (15%) + JTBD_SIGNAL (10%)
 - Select highest scorer
-- If top two are within 1 point of each other, default to the archetype with
-  higher documented CTR for the identified platform
+
+CRITICAL ANTI-BIAS RULES:
+- NEVER default to BEFORE_AFTER unless the product has a PHYSICAL, VISIBLE
+  transformation that can be shown in a split image (not abstract outcomes).
+  For apps, SaaS, digital tools, education platforms, coaching, and services:
+  BEFORE_AFTER is rarely the highest scorer. Force yourself to score other
+  archetypes before considering BEFORE_AFTER.
+- For digital products and apps: UGC_STYLE, HIGH_INFORMATION, and
+  TESTIMONIAL_SCREENSHOT typically generate 2-3x higher CTR than BEFORE_AFTER.
+- BEFORE_AFTER is the most overused archetype in the category. It triggers ad
+  fatigue and creative blindness. Only select it when it genuinely scores highest
+  with objective criteria.
+- If top two archetypes are within 1 point: choose the archetype that is NOT
+  BEFORE_AFTER as the tiebreaker, unless BEFORE_AFTER is clearly superior.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BRIEF PRESENTATION (USER-FACING)

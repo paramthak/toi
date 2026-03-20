@@ -15,14 +15,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'generationId required' }, { status: 400 })
     }
 
-    // Fetch generation
+    // Fetch generation with image_data fallback
     const rows = await query<{
       id: string
       image_url: string
+      image_data: string | null
       brief_json: Record<string, unknown>
       archetype: string
     }>(
-      `SELECT id, image_url, brief_json, archetype FROM generations WHERE id = $1`,
+      `SELECT id, image_url, image_data, brief_json, archetype FROM generations WHERE id = $1`,
       [generationId]
     )
 
@@ -32,24 +33,29 @@ export async function POST(request: NextRequest) {
 
     const gen = rows[0]
 
-    // Extract filename from URL
+    // Get image as base64 — disk first, then DB fallback
     const filename = path.basename(gen.image_url)
-    if (!fileExists(filename)) {
+    const ext = path.extname(filename).toLowerCase().replace('.', '')
+    const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`
+
+    let imageBase64: string
+    if (fileExists(filename)) {
+      imageBase64 = readFileAsBase64(filename)
+    } else if (gen.image_data) {
+      imageBase64 = gen.image_data
+    } else {
       return NextResponse.json(
         { error: 'Score unavailable for this creative.' },
         { status: 404 }
       )
     }
 
-    // Read image as base64
-    const imageBase64 = readFileAsBase64(filename)
-
-    // Determine mime type from extension
-    const ext = path.extname(filename).toLowerCase().replace('.', '')
-    const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`
-
     // Score the creative
-    const scoring = await scoreCreative(imageBase64, mimeType, gen.brief_json as unknown as Parameters<typeof scoreCreative>[2])
+    const scoring = await scoreCreative(
+      imageBase64,
+      mimeType,
+      gen.brief_json as unknown as Parameters<typeof scoreCreative>[2]
+    )
 
     // Save score to DB
     await query(

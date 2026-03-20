@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import ScoreCard from '@/components/ui/ScoreCard'
 import Image from 'next/image'
@@ -25,11 +24,24 @@ const ASPECT_RATIOS = [
   { value: '1:1', label: 'Reels Cover (1:1)', sublabel: '1080×1080' },
 ]
 
+const ARCHETYPE_WHY: Record<string, string> = {
+  UGC_STYLE: 'The authentic UGC aesthetic lowers ad guards. Viewers engage with it like organic content, not an ad.',
+  HIGH_INFORMATION: 'Feature-dense layout answers objections upfront. Works for problem-aware audiences in decision mode.',
+  BEFORE_AFTER: 'Visual contrast between pain and resolution creates an emotional gap that drives clicks.',
+  MINIMALIST: 'Visual isolation forces attention. Cognitive relief in a busy feed.',
+  TESTIMONIAL_SCREENSHOT: 'Screenshot-style social proof feels real. Specific numbers and language build instant credibility.',
+  UGLY_ANTI_DESIGN: 'Deliberate imperfection signals authenticity. Skeptical audiences trust what looks unmanipulated.',
+  PATTERN_INTERRUPT: 'Visual anomaly triggers involuntary attention arrest. Maximum scroll-stop.',
+  MEME_IFIED: 'Familiar formats lower cognitive load while hijacking existing emotional associations.',
+  AUTO_SELECT: 'The system selected the highest-performing pattern for this specific audience and product.',
+}
+
 interface GenerationResult {
   id: string
   imageUrl: string
   aspectRatio: string
   variantNumber: number
+  archetype: string
   scoring?: ScoringResult
   scoringLoading?: boolean
 }
@@ -43,11 +55,14 @@ export default function ProductForm() {
   const [variantCount, setVariantCount] = useState(1)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [logoUploading, setLogoUploading] = useState(false)
+  const [productPhotoUrl, setProductPhotoUrl] = useState<string | null>(null)
+  const [productPhotoUploading, setProductPhotoUploading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [generations, setGenerations] = useState<GenerationResult[]>([])
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const fileRef = useRef<HTMLInputElement>(null)
+  const logoRef = useRef<HTMLInputElement>(null)
+  const productPhotoRef = useRef<HTMLInputElement>(null)
 
   function validate() {
     const errs: Record<string, string> = {}
@@ -81,6 +96,24 @@ export default function ProductForm() {
     }
   }
 
+  async function handleProductPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setProductPhotoUploading(true)
+    const formData = new FormData()
+    formData.append('logo', file)
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setProductPhotoUrl(data.logoUrl)
+    } catch (err) {
+      setErrors(prev => ({ ...prev, productPhoto: err instanceof Error ? err.message : 'Upload failed' }))
+    } finally {
+      setProductPhotoUploading(false)
+    }
+  }
+
   async function handleGenerate() {
     const errs = validate()
     setErrors(errs)
@@ -88,6 +121,8 @@ export default function ProductForm() {
 
     setGenerating(true)
     setGenerations([])
+
+    const selectedArchetype = archetype === 'AUTO' ? 'AUTO_SELECT' : archetype
 
     const brief = {
       persona,
@@ -97,7 +132,7 @@ export default function ProductForm() {
       platform: aspectRatios.join(', '),
       aspect_ratios: aspectRatios,
       brand_constraints: 'none',
-      archetype: archetype === 'AUTO' ? 'AUTO_SELECT' : archetype,
+      archetype: selectedArchetype,
       hook_concept: '',
       psychological_trigger: '',
       cta_text: cta,
@@ -108,19 +143,19 @@ export default function ProductForm() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brief, variantCount, logoUrl }),
+        body: JSON.stringify({ brief, variantCount, logoUrl, productPhotoUrl }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
       const gens: GenerationResult[] = data.generations.map((g: GenerationResult) => ({
         ...g,
+        archetype: selectedArchetype,
         scoringLoading: true,
       }))
       setGenerations(gens)
       setSelectedIdx(0)
 
-      // Score each
       for (const gen of data.generations) {
         scoreGen(gen.id)
       }
@@ -156,6 +191,8 @@ export default function ProductForm() {
   }
 
   const selected = generations[selectedIdx]
+  const selectedArchetypeKey = selected?.archetype || (archetype === 'AUTO' ? 'AUTO_SELECT' : archetype)
+  const whyItWorks = selected?.scoring ? ARCHETYPE_WHY[selectedArchetypeKey] || ARCHETYPE_WHY['AUTO_SELECT'] : null
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 pb-20 md:pb-6">
@@ -178,7 +215,7 @@ export default function ProductForm() {
               value={persona}
               onChange={e => setPersona(e.target.value)}
               rows={4}
-              placeholder="Who is this ad for? Age, what they want, what they're worried about. Paste a persona doc or describe in 2-3 sentences."
+              placeholder="Who is this ad for? Age, what they want, what they're worried about."
               className={cn(
                 'w-full bg-zinc-900 border rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none transition',
                 errors.persona ? 'border-red-500' : 'border-zinc-700'
@@ -214,7 +251,7 @@ export default function ProductForm() {
               value={product}
               onChange={e => setProduct(e.target.value)}
               rows={4}
-              placeholder="What are you advertising? What's the most compelling thing about it? Include any real results or numbers if you have them."
+              placeholder="What are you advertising? What's the most compelling thing about it?"
               className={cn(
                 'w-full bg-zinc-900 border rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none transition',
                 errors.product ? 'border-red-500' : 'border-zinc-700'
@@ -235,9 +272,7 @@ export default function ProductForm() {
                   type="button"
                   onClick={() => {
                     setAspectRatios(prev =>
-                      prev.includes(r.value)
-                        ? prev.filter(v => v !== r.value)
-                        : [...prev, r.value]
+                      prev.includes(r.value) ? prev.filter(v => v !== r.value) : [...prev, r.value]
                     )
                   }}
                   className={cn(
@@ -257,9 +292,7 @@ export default function ProductForm() {
 
           {/* Creative style */}
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Creative Style
-            </label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Creative Style</label>
             <select
               value={archetype}
               onChange={e => setArchetype(e.target.value)}
@@ -290,7 +323,7 @@ export default function ProductForm() {
             ) : (
               <button
                 type="button"
-                onClick={() => fileRef.current?.click()}
+                onClick={() => logoRef.current?.click()}
                 disabled={logoUploading}
                 className={cn(
                   'w-full bg-zinc-900 border border-dashed rounded-xl px-4 py-4 text-sm transition flex flex-col items-center gap-2',
@@ -312,14 +345,46 @@ export default function ProductForm() {
                 <span>Upload logo (PNG or SVG)</span>
               </button>
             )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".png,.svg,.jpg,.jpeg"
-              className="hidden"
-              onChange={handleLogoUpload}
-            />
+            <input ref={logoRef} type="file" accept=".png,.svg,.jpg,.jpeg" className="hidden" onChange={handleLogoUpload} />
             {errors.logo && <p className="text-red-400 text-xs mt-1">{errors.logo}</p>}
+          </div>
+
+          {/* Product photo (optional) */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+              Product / App Screenshot <span className="text-zinc-500 font-normal">(optional — improves AI accuracy)</span>
+            </label>
+            {productPhotoUrl ? (
+              <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3">
+                <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-zinc-300">Product photo ready</span>
+                <button onClick={() => setProductPhotoUrl(null)} className="ml-auto text-zinc-600 hover:text-zinc-400 text-xs">Remove</button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => productPhotoRef.current?.click()}
+                disabled={productPhotoUploading}
+                className="w-full bg-zinc-900 border border-dashed border-zinc-700 hover:border-zinc-500 rounded-xl px-4 py-4 text-sm text-zinc-400 hover:text-zinc-300 transition flex flex-col items-center gap-2"
+              >
+                {productPhotoUploading ? (
+                  <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                )}
+                <span>Upload product/app screenshot (PNG or JPG)</span>
+              </button>
+            )}
+            <input ref={productPhotoRef} type="file" accept=".png,.jpg,.jpeg,.webp" className="hidden" onChange={handleProductPhotoUpload} />
+            {errors.productPhoto && <p className="text-red-400 text-xs mt-1">{errors.productPhoto}</p>}
           </div>
 
           {/* Variant count */}
@@ -377,7 +442,6 @@ export default function ProductForm() {
 
           {generations.length > 0 && (
             <>
-              {/* Variant selector */}
               {generations.length > 1 && (
                 <div className="flex gap-2 flex-wrap">
                   {generations.map((gen, i) => (
@@ -410,7 +474,7 @@ export default function ProductForm() {
                       unoptimized
                     />
                     <a
-                      href={selected.imageUrl}
+                      href={`${selected.imageUrl}?download=1`}
                       download
                       className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm hover:bg-black/80 p-2 rounded-lg transition"
                     >
@@ -419,6 +483,20 @@ export default function ProductForm() {
                       </svg>
                     </a>
                   </div>
+
+                  {/* Why it works panel */}
+                  {whyItWorks && selected.scoring && (
+                    <div className="bg-indigo-950/40 border border-indigo-800/50 rounded-xl px-4 py-3">
+                      <p className="text-xs font-semibold text-indigo-400 mb-1">Why this creative is built to work</p>
+                      <p className="text-xs text-zinc-300 leading-relaxed">{whyItWorks}</p>
+                      {selected.scoring.improvement_tips?.[0] && (
+                        <p className="text-xs text-zinc-400 mt-2">
+                          <span className="text-amber-400 font-medium">Top improvement: </span>
+                          {selected.scoring.improvement_tips[0].tip}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {(selected.scoring || selected.scoringLoading) && (
                     <ScoreCard

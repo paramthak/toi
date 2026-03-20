@@ -12,12 +12,7 @@ interface LibraryItem {
   aspect_ratio: string
   variant_number: number
   archetype: string
-  brief_json: {
-    persona?: string
-    product?: string
-    cta_text?: string
-    hook_concept?: string
-  }
+  brief_json: Record<string, unknown>
   final_score: number | null
   score_label: string | null
   session_interface: string
@@ -47,11 +42,23 @@ export default function CreativeLibrary() {
   }
 
   function handleReiterate(item: LibraryItem) {
-    // Navigate to chat with brief preloaded
-    const brief = item.brief_json
-    const params = new URLSearchParams({
-      brief: JSON.stringify(brief),
-    })
+    // Build a complete brief for chat iteration (fill defaults for any missing fields)
+    const stored = item.brief_json as Record<string, unknown>
+    const brief = {
+      persona: (stored.persona as string) || '',
+      jtbd: (stored.jtbd as string) || (stored.cta_text as string) || '',
+      product: (stored.product as string) || '',
+      pain_or_aspiration: (stored.pain_or_aspiration as string) || 'COMBINATION',
+      platform: (stored.platform as string) || 'Feed',
+      aspect_ratios: (stored.aspect_ratios as string[]) || [item.aspect_ratio || '4:5'],
+      brand_constraints: (stored.brand_constraints as string) || 'none',
+      archetype: (stored.archetype as string) || item.archetype || 'AUTO_SELECT',
+      hook_concept: (stored.hook_concept as string) || '',
+      psychological_trigger: (stored.psychological_trigger as string) || '',
+      cta_text: (stored.cta_text as string) || '',
+      emotional_lane: (stored.emotional_lane as string) || 'ASPIRATION',
+    }
+    const params = new URLSearchParams({ brief: encodeURIComponent(JSON.stringify(brief)) })
     router.push(`/chat?${params.toString()}`)
   }
 
@@ -163,7 +170,7 @@ function LibraryCard({
         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-end p-3">
           <div className="w-full space-y-1">
             <p className="text-xs text-zinc-300 line-clamp-2">
-              {item.brief_json?.hook_concept || item.brief_json?.product || 'Creative'}
+              {(item.brief_json?.hook_concept as string) || (item.brief_json?.product as string) || 'Creative'}
             </p>
             <p className="text-xs text-zinc-500">{formatDate(item.created_at)}</p>
           </div>
@@ -205,12 +212,12 @@ function LibraryCard({
               </div>
 
               <p className="text-xs text-zinc-400 line-clamp-3">
-                {item.brief_json?.hook_concept || item.brief_json?.product || '—'}
+                {(item.brief_json?.hook_concept as string) || (item.brief_json?.product as string) || '—'}
               </p>
 
               <div className="flex gap-2">
                 <a
-                  href={item.image_url}
+                  href={`${item.image_url}?download=1`}
                   download={`creative-${item.id}.png`}
                   onClick={e => e.stopPropagation()}
                   className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium py-2 rounded-xl transition flex items-center justify-center gap-2"

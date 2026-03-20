@@ -55,6 +55,10 @@ async function migrate() {
   `
   console.log('✓ scores table')
 
+  // Add image_data column for DB-backed image persistence (no filesystem dependency)
+  await sql`ALTER TABLE generations ADD COLUMN IF NOT EXISTS image_data TEXT`
+  console.log('✓ image_data column')
+
   await sql`CREATE INDEX IF NOT EXISTS idx_generations_session ON generations(session_id)`
   await sql`CREATE INDEX IF NOT EXISTS idx_scores_generation ON scores(generation_id)`
   await sql`CREATE INDEX IF NOT EXISTS idx_generations_created ON generations(created_at DESC)`

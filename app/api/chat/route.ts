@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
     const response = await sendChatMessage(chatHistory, message, CHAT_SYSTEM_PROMPT)
 
     // Check if the response contains a BRIEF_JSON block (ready to generate)
-    const briefMatch = response.match(/<BRIEF_JSON>([\s\S]*?)<\/BRIEF_JSON>/)
+    // Use flexible closing tag to handle model typos like </BRIF_JSON>
+    const briefMatch = response.match(/<BRIEF_JSON>([\s\S]*?)<\/[A-Z_]*JSON>/)
     let briefData = null
     if (briefMatch) {
       try {
