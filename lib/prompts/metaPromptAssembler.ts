@@ -297,9 +297,8 @@ export interface BriefJSON {
 }
 
 export function buildMetaPromptUserMessage(brief: BriefJSON): string {
-  // Strip internal fields from the JSON sent to the model
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { _logo_b64, _logo_mime, ...briefForModel } = brief
+  // Strip internal fields (_logo_b64, _logo_mime) from the JSON sent to the model
+  const { _logo_b64: _a, _logo_mime: _b, ...briefForModel } = brief
   return `${JSON.stringify(briefForModel, null, 2)}
 
 CRITICAL REQUIREMENT: Your output prompt MUST explicitly include RENDER: directives
