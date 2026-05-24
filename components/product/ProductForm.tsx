@@ -514,7 +514,7 @@ export default function ProductForm() {
                       src={selected.imageUrl}
                       alt="Generated creative"
                       fill
-                      className="object-cover"
+                      className="object-contain"
                       unoptimized
                     />
                     <a

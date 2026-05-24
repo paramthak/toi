@@ -75,7 +75,7 @@ export default function CreativeOutput({ generations, isGenerating, briefConcept
           src={selected.imageUrl}
           alt="Generated creative"
           fill
-          className="object-cover"
+          className="object-contain"
           unoptimized
         />
 
