@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import OpenAI, { toFile } from 'openai'
 import { META_PROMPT_ASSEMBLER_SYSTEM, BriefJSON, buildMetaPromptUserMessage } from './prompts/metaPromptAssembler'
 import { SCORING_SYSTEM_PROMPT } from './prompts/scoringPrompt'
 import { PROMPT_EVALUATOR_SYSTEM, PROMPT_REFINER_SYSTEM } from './prompts/promptEvaluator'
@@ -201,14 +201,15 @@ export async function generateImage(
     '\n\nCRITICAL RENDERING MANDATE: This is a real Instagram advertisement. ALL text elements described above MUST be physically rendered as clearly readable text IN the generated image. Do not omit any text overlays. The headline, CTA button/text, and any specified copy must appear as legible characters in the final image. An ad without readable text cannot function.'
 
   if (inputImages && inputImages.length > 0) {
-    const imageFiles = inputImages.map((img, i) => {
-      const buffer = Buffer.from(img.base64Data, 'base64')
-      return new File([buffer], `input_${i}.png`, { type: img.mimeType })
-    })
+    const imageFiles = await Promise.all(
+      inputImages.map((img, i) =>
+        toFile(Buffer.from(img.base64Data, 'base64'), `input_${i}.png`, { type: img.mimeType })
+      )
+    )
 
     const response = await client.images.edit({
       model: 'gpt-image-1',
-      image: imageFiles as unknown as File,
+      image: imageFiles[0],
       prompt: fullPrompt,
       size: '1024x1024',
     })
