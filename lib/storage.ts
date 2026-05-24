@@ -73,19 +73,22 @@ export async function compositeLogoOntoImage(
   const imageWidth = imageInfo.width || 1024
   const imageHeight = imageInfo.height || 1024
 
-  // Resize logo to 11% of image width
+  // Resize logo to 11% of image width, convert to PNG (handles SVG/JPG/PNG)
   const logoTargetWidth = Math.round(imageWidth * 0.11)
-  const resizedLogo = await sharp(logoBuffer)
+  const resizedLogo = await sharp(logoBuffer, { density: 300 })
     .resize(logoTargetWidth, null, { fit: 'inside', withoutEnlargement: false })
     .png()
     .toBuffer()
 
   const logoInfo = await sharp(resizedLogo).metadata()
+  const logoWidth = logoInfo.width || logoTargetWidth
   const logoHeight = logoInfo.height || logoTargetWidth
 
   const padding = Math.round(imageWidth * 0.04)
-  const left = padding
-  const top = imageHeight - logoHeight - padding
+
+  // Clamp position so logo never goes out of bounds
+  const left = Math.max(0, Math.min(padding, imageWidth - logoWidth - 1))
+  const top = Math.max(0, Math.min(imageHeight - logoHeight - padding, imageHeight - logoHeight - 1))
 
   const composited = await sharp(imageBuffer)
     .composite([{ input: resizedLogo, left, top }])

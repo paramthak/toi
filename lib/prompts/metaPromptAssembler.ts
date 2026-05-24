@@ -83,8 +83,8 @@ INFORMATION DENSITY (weight 12%):
 - Reels Cover: Maximum 8 words. Single bold statement only.
 - Apply "One Job" rule: the image communicates ONE thing. Every element
   either reinforces that one thing or is removed.
-- TEXT IS MANDATORY: Every Instagram ad must contain readable text overlays.
-  A creative without headline text and CTA text CANNOT function as an ad.
+- Headline text is mandatory. CTA text is only included if cta_text is
+  provided in the brief — never invent or default a CTA.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PHOTOREALISM MANDATE
@@ -119,20 +119,15 @@ When a human subject appears in the image, apply these MANDATORY parameters:
   chromatic aberration at edges, and make imperfections more pronounced.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LOGO EMBEDDING DIRECTIVE
+LOGO DIRECTIVE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-If brand_constraints mentions "LOGO INPUT PROVIDED" or "Logo image provided as
-reference input", include this EXACT instruction in your output prompt:
-
-"The brand logo has been provided as a visual reference input image. EMBED the
-exact provided logo in the BOTTOM-LEFT corner of the composition (NOT bottom-right
-— bottom-left is reserved for the brand logo). Preserve its exact colors,
-transparency, and shape without any modification. Scale to approximately 10-12%
-of the frame width. Do NOT add any background rectangle, shadow, or padding
-behind the logo — render it directly on the image with its original transparency.
-The CTA button goes in the bottom-right quadrant — keep the logo and CTA in
-their separate corners."
+If brand_constraints mentions "bottom-left corner" and logo compositing:
+- Leave the bottom-left area completely clear of text, subjects, and busy
+  visual elements. A logo will be composited there programmatically after
+  generation — do NOT attempt to draw or generate a logo yourself.
+- Do NOT place any text, CTA buttons, or visual elements in the bottom-left
+  15% width × 10% height zone.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ARCHETYPE-SPECIFIC DIRECTIVES
@@ -145,7 +140,7 @@ UGC_STYLE:
   Text overlay: Instagram Stories default font or TikTok caption style.
   White with subtle drop shadow. Positioned center-bottom third.
   Key directive: This must look like it was filmed by a friend, not an agency.
-  TEXT REQUIRED: Must include a bold headline in caption-style and a CTA overlay.
+  TEXT REQUIRED: Must include a bold headline in caption-style. Include CTA overlay only if cta_text is provided.
 
 UGLY_ANTI_DESIGN:
   Aesthetic: Deliberately violates design conventions. High-contrast background
@@ -161,16 +156,14 @@ MINIMALIST:
   background. Zero decorative elements. Maximum one line of text.
   Brand color as background (never white unless it IS the brand).
   Key directive: The isolation of the single element IS the message.
-  TEXT REQUIRED: ONE short, powerful headline (5-8 words max) in large text plus
-  a small CTA. The text restraint is intentional — but there MUST be text.
+  TEXT REQUIRED: ONE short, powerful headline (5-8 words max) in large text. Include CTA only if cta_text is provided.
 
 HIGH_INFORMATION:
   Aesthetic: Structured layout with clear visual hierarchy. Benefit bullets
   (3-5 maximum). One hero visual (product or transformation). Price/offer callout
   in top-right. Star ratings or social proof number visible. F-pattern layout.
   Key directive: This is a decision-support document compressed into one image.
-  TEXT REQUIRED: Multiple text elements — headline, 3-5 bullet points, a CTA
-  button. Rich text is the core of this archetype.
+  TEXT REQUIRED: Multiple text elements — headline, 3-5 bullet points. Include a CTA button only if cta_text is provided.
 
 MEME_IFIED:
   Aesthetic: Recognisable internet meme template adapted for the product.
@@ -185,23 +178,21 @@ BEFORE_AFTER:
   saturated tones. Clear visual contrast between the two states.
   Key directive: The left side must create mild viewer discomfort. The right side
   must create desire. The gap between them IS the click motivation.
-  TEXT REQUIRED: Labels "Before" / "After" on each side, plus a headline across
-  the top and CTA at bottom.
+  TEXT REQUIRED: Labels "Before" / "After" on each side, plus a headline across the top. CTA at bottom only if cta_text is provided.
 
 TESTIMONIAL_SCREENSHOT:
   Aesthetic: Screenshot or screenshot-style overlay of a review, DM, tweet, or
   comment. Real name + profile photo visible. Specific language ("got my visa in
   3 weeks"). Brand product subtly visible in background or corner logo.
   Key directive: Specificity = credibility. "3 weeks" outperforms "fast."
-  TEXT REQUIRED: The screenshot text IS the headline. Must include specific quotes
-  and a CTA overlay.
+  TEXT REQUIRED: The screenshot text IS the headline. Must include specific quotes. CTA overlay only if cta_text is provided.
 
 PATTERN_INTERRUPT:
   Aesthetic: Maximum visual anomaly for the context. Extreme close-up,
   surreal juxtaposition, scale distortion, unexpected color saturation.
   May have no immediately obvious connection to the product.
   Key directive: Trigger the orienting reflex.
-  TEXT REQUIRED: One short, punchy text line to anchor meaning, plus CTA.
+  TEXT REQUIRED: One short, punchy text line to anchor meaning. CTA only if cta_text is provided.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PROMPT ASSEMBLY FORMAT
@@ -222,20 +213,21 @@ Include specific texture, grain level, colour grading instruction.
 Specify exact skin texture, lighting source, expression detail per the
 Photorealism Mandate above.
 
-[TEXT OVERLAY — MANDATORY RENDER INSTRUCTIONS]
+[TEXT OVERLAY — RENDER INSTRUCTIONS]
 Use RENDER: prefix for each text element to instruct the image model:
-RENDER HEADLINE: "[exact headline text derived from hook_concept]" — [font style],
+RENDER HEADLINE: "[headline — use the user's hook_concept words, lightly sharpened if needed]" — [font style],
   [size: large/medium], [position: top-center / center / bottom-third], [color + shadow]
-RENDER CTA: "[exact CTA text from brief]" — bold button, [color], bottom-right quadrant,
-  high contrast against background
 RENDER SUBTEXT: "[any supporting text if needed]" — [style, position]
-[Include 2-4 text elements depending on archetype. Never omit the headline and CTA.]
+[If cta_text is provided in the brief, also include:]
+RENDER CTA: "[exact cta_text from brief]" — bold button, [color], bottom-right quadrant,
+  high contrast against background
+[Never invent CTA text if cta_text is empty or absent.]
 
-[CTA ELEMENT — exact specification]
+[CTA ELEMENT — only if cta_text is provided in the brief]
 - Button or text link
-- Exact CTA copy
+- Use exact cta_text — do not substitute or invent
 - Colour (hex or descriptive)
-- Position in frame
+- Position: bottom-right quadrant
 - Visual treatment to ensure highest contrast in image
 
 [LOGO PLACEMENT — if applicable]
@@ -256,10 +248,18 @@ Do not make the CTA blend into the background. Do not use more than [N] words
 of visible text. Do not make human subjects look AI-generated or plastic."
 
 MANDATORY TEXT RENDERING STATEMENT — include this at the end of every prompt:
-"CRITICAL: This is a real Instagram advertisement. The above text elements MUST
-be rendered as clearly readable text physically appearing in the image. The
-headline and CTA are not optional decorations — they are load-bearing creative
-elements. Render all text with high contrast, legible at mobile screen size."
+"CRITICAL: All text specified above MUST be rendered as clearly readable text
+physically appearing in the image. Render all text with high contrast,
+legible at mobile screen size."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COPY FIDELITY RULE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The headline copy in your prompt MUST come directly from the user's hook_concept.
+You may sharpen punctuation, capitalisation, or line breaks — but the core words
+must be the user's own. Do NOT rewrite or reinterpret the message. The user's
+words are the ad copy. Your creative domain is the visual execution only.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SELF-EVALUATION — CHECK BEFORE OUTPUTTING
@@ -267,12 +267,12 @@ SELF-EVALUATION — CHECK BEFORE OUTPUTTING
 
 After drafting your prompt, verify every item below. If any is missing, rewrite to add it before outputting:
 
-□ RENDER:HEADLINE present with exact quoted text?
-□ RENDER:CTA present with exact CTA copy, "bottom-right" position, specific high-contrast color?
+□ RENDER:HEADLINE present and uses the user's actual hook_concept words (not rewritten)?
+□ RENDER:CTA present only if cta_text was provided — not invented?
 □ ONE trigger encoded VISUALLY — concrete visual details, not just named?
 □ Specific pattern interrupt described — HOW does it stop a scroll (not generic "eye-catching")?
 □ If human: specific lighting source named (e.g. "window light from left") + skin texture (pores/subsurface scattering)?
-□ Logo in BOTTOM-LEFT with NO background rectangle or shadow (if logo provided)?
+□ Bottom-left corner kept clear if logo compositing mentioned in brand_constraints?
 □ Ends with MANDATORY TEXT RENDERING STATEMENT?
 
 Only output the final, verified version.`
@@ -299,11 +299,15 @@ export interface BriefJSON {
 export function buildMetaPromptUserMessage(brief: BriefJSON): string {
   // Strip internal fields (_logo_b64, _logo_mime) from the JSON sent to the model
   const { _logo_b64: _a, _logo_mime: _b, ...briefForModel } = brief
+  const ctaLine = brief.cta_text?.trim()
+    ? `2. CTA text (provided): "${brief.cta_text}" — render this exactly as a button`
+    : `2. CTA: NOT PROVIDED — do not invent or add a CTA element`
+
   return `${JSON.stringify(briefForModel, null, 2)}
 
-CRITICAL REQUIREMENT: Your output prompt MUST explicitly include RENDER: directives
-for at minimum these text elements:
-1. A headline derived from hook_concept: "${brief.hook_concept || 'main benefit'}"
-2. CTA text: "${brief.cta_text || 'Learn More'}"
+RENDER REQUIREMENTS:
+1. Headline: use the user's hook_concept words directly — "${brief.hook_concept || ''}"
+   You may adjust capitalisation/punctuation but must not rewrite the meaning.
+${ctaLine}
 End your prompt with the MANDATORY TEXT RENDERING STATEMENT.`
 }
