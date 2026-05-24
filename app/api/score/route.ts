@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth'
-import { scoreCreative } from '@/lib/gemini'
+import { scoreCreative } from '@/lib/openai'
 import { readFileAsBase64, fileExists } from '@/lib/storage'
 import { query } from '@/lib/db'
 import { getScoreLabel } from '@/lib/prompts/scoringPrompt'

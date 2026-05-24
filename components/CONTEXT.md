@@ -7,15 +7,15 @@ All components are `'use client'` unless noted. Server components live in `app/`
 ### ChatInterface.tsx
 The core UI for the Chat interface. Manages the full conversation state:
 - `messages` — displayed chat messages (user + assistant)
-- `geminiHistory` — Gemini API format history sent with each request
+- `chatHistory` — OpenAI API format history sent with each request
 - `sessionId` — Neon Postgres session UUID, created on first message
 - `logoUrl` — URL of uploaded logo (stored in UPLOAD_DIR)
 - `generations` — array of generated creatives with scores
-- `pendingBrief` — set when Gemini returns a `<BRIEF_JSON>` block; shows Confirm/Adjust buttons
+- `pendingBrief` — set when GPT-4.1 returns a `<BRIEF_JSON>` block; shows Confirm/Adjust buttons
 - `isGenerating` — shows the pulsing placeholder while image generates
 
 **Flow:**
-1. User types → `handleSend()` → POST `/api/chat` → Gemini Flash responds
+1. User types → `handleSend()` → POST `/api/chat` → GPT-4.1 responds
 2. If response contains `<BRIEF_JSON>`, `pendingBrief` is set and Confirm/Adjust buttons appear
 3. On confirm → `triggerGeneration()` → POST `/api/generate` → images appear one by one
 4. Score fetched in background per generation → ScoreCard appears with 30–45s delay
@@ -53,7 +53,7 @@ Loads from `GET /api/library`. Renders a responsive grid. Each card shows:
 Fixed bottom nav on mobile, fixed top nav on desktop. Three tabs: Chat · Quick Form · Library. Sign-out button (calls DELETE `/api/auth` then redirects to `/login`).
 
 ### ScoreCard.tsx
-Displays scoring results from Gemini Vision:
+Displays scoring results from GPT-4.1 Vision:
 - Animated SVG score ring (colour: green ≥80, yellow ≥65, orange ≥50, red <50)
 - Score label badge (colour-coded per threshold)
 - Scroll-stop diagnosis text

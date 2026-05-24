@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { cn, getScoreBadgeStyle } from '@/lib/utils'
 import ScoreCard from '@/components/ui/ScoreCard'
-import type { ScoringResult } from '@/lib/gemini'
+import type { ScoringResult } from '@/lib/openai'
 
 interface Generation {
   id: string

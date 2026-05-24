@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth'
-import { sendChatMessage, ChatMessage } from '@/lib/gemini'
+import { sendChatMessage, ChatMessage } from '@/lib/openai'
 import { CHAT_SYSTEM_PROMPT } from '@/lib/prompts/chatSystemPrompt'
 import { query } from '@/lib/db'
 
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       activeSessionId = rows[0].id
     }
 
-    // Send to Gemini Flash
+    // Send to GPT-4.1
     const chatHistory: ChatMessage[] = history || []
     const response = await sendChatMessage(chatHistory, message, CHAT_SYSTEM_PROMPT)
 

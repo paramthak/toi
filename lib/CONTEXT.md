@@ -16,14 +16,14 @@ Neon Serverless PostgreSQL client.
 - `query<T>(sql, params?)` — executes parameterised queries, returns typed rows
 - `initDb()` — creates all tables and indexes if they don't exist (called by `/api/db-init`)
 
-## lib/gemini.ts
-All Gemini API calls. Uses `@google/generative-ai`.
+## lib/openai.ts
+All OpenAI API calls. Uses `openai` SDK.
 
 ### Functions:
-- `sendChatMessage(history, userMessage, systemPrompt)` — Gemini Flash chat call, returns assistant text
-- `assemblMetaPrompt(brief)` — sends brief JSON to Gemini Flash with meta prompt assembler system prompt, returns the assembled image generation prompt string
-- `generateImage(metaPrompt)` — sends prompt to `gemini-3-pro-image-preview`, returns `{ base64Data, mimeType }` from the inline image response
-- `scoreCreative(imageBase64, mimeType, brief)` — sends image + brief to Gemini Vision (gemini-1.5-flash), returns parsed `ScoringResult` JSON
+- `sendChatMessage(history, userMessage, systemPrompt)` — GPT-4.1 chat call, returns assistant text
+- `assemblMetaPrompt(brief)` — sends brief JSON to GPT-4.1 with meta prompt assembler system prompt, returns the assembled image generation prompt string
+- `generateImage(metaPrompt)` — sends prompt to `gpt-image-1`, returns `{ base64Data, mimeType }` from the response
+- `scoreCreative(imageBase64, mimeType, brief)` — sends image + brief to GPT-4.1 Vision, returns parsed `ScoringResult` JSON
 
 ## lib/storage.ts
 Local filesystem / Railway volume file I/O.
@@ -32,7 +32,7 @@ Local filesystem / Railway volume file I/O.
 - `saveLogo(buffer, originalName)` — saves uploaded logo, returns `/api/files/<name>` URL
 - `getFilePath(filename)` — resolves absolute path for a stored file
 - `fileExists(filename)` — checks if file exists in UPLOAD_DIR
-- `readFileAsBase64(filename)` — reads file from UPLOAD_DIR and returns base64 string (used by score route to pass image to Gemini Vision)
+- `readFileAsBase64(filename)` — reads file from UPLOAD_DIR and returns base64 string (used by score route to pass image to GPT-4.1 Vision)
 
 ## lib/utils.ts
 Shared utilities used by components.
@@ -44,7 +44,7 @@ Shared utilities used by components.
 ## lib/prompts/
 
 ### chatSystemPrompt.ts
-The exact master system prompt for the Gemini Flash chat session (verbatim from PRD Section 5). Covers:
+The exact master system prompt for the GPT-4.1 chat session (verbatim from PRD Section 5). Covers:
 - Conversation rules (one question at a time, 3–8 questions, no jargon)
 - 6 signal dimensions to collect (PERSONA, JTBD, PRODUCT, PAIN/ASPIRATION, PLATFORM, BRAND)
 - Archetype selection logic (8 archetypes with weighted scoring)
@@ -52,7 +52,7 @@ The exact master system prompt for the Gemini Flash chat session (verbatim from 
 - Post-generation iteration instructions
 
 ### metaPromptAssembler.ts
-System prompt for the Gemini Flash meta prompt assembly call (verbatim from PRD Section 6). Covers:
+System prompt for the GPT-4.1 meta prompt assembly call (verbatim from PRD Section 6). Covers:
 - Scroll-stop mechanics (35% weight)
 - Psychological triggers (20%)
 - Human element rules (15%)
@@ -65,7 +65,7 @@ System prompt for the Gemini Flash meta prompt assembly call (verbatim from PRD 
 Also exports `BriefJSON` interface and `buildMetaPromptUserMessage()`.
 
 ### scoringPrompt.ts
-System prompt for the Gemini Vision scoring call (verbatim from PRD Section 8.4). Instructs the model to:
+System prompt for the GPT-4.1 Vision scoring call (verbatim from PRD Section 8.4). Instructs the model to:
 - Output only valid JSON in a specific schema
 - Score 7 factors (0–100 integers, gate scores as floats)
 - Apply the two-tier formula

@@ -21,8 +21,8 @@ Body: `{ sessionId?, brief: BriefJSON, variantCount: 1–10, logoUrl? }`
 For each variant (sequential):
 1. Adds variant instruction to brief (variation directives rotate: composition, palette, expression, headline, bg environment)
 2. Appends logo context to brand_constraints if logoUrl present
-3. Calls `assemblMetaPrompt(brief)` → Gemini Flash
-4. Calls `generateImage(metaPrompt)` → gemini-3-pro-image-preview (auto-retries once on failure)
+3. Calls `assemblMetaPrompt(brief)` → GPT-4.1
+4. Calls `generateImage(metaPrompt)` → gpt-image-1 (auto-retries once on failure)
 5. Saves image to UPLOAD_DIR via `saveBase64Image()`
 6. Inserts row into `generations` table
 7. Returns: `{ sessionId, generations: Array<{ id, imageUrl, metaPrompt, archetype, aspectRatio, variantNumber }> }`
@@ -32,7 +32,7 @@ Body: `{ generationId }`
 
 1. Fetches generation row from DB (image_url, brief_json, archetype)
 2. Reads image from UPLOAD_DIR as base64
-3. Calls `scoreCreative(imageBase64, mimeType, brief)` → Gemini Vision
+3. Calls `scoreCreative(imageBase64, mimeType, brief)` → GPT-4.1 Vision
 4. Inserts score into `scores` table (UNIQUE on generation_id → ON CONFLICT DO NOTHING prevents duplicates)
 5. Returns: `{ scoring: ScoringResult }`
 

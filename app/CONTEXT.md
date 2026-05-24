@@ -14,9 +14,9 @@
 |---|---|---|
 | `/api/auth` | POST | Login — validates credentials, sets JWT cookie |
 | `/api/auth` | DELETE | Logout — clears JWT cookie |
-| `/api/chat` | POST | Sends message to Gemini Flash chat. Parses `<BRIEF_JSON>` blocks. |
-| `/api/generate` | POST | Assembles meta prompt → generates image(s) via Gemini → saves to DB + storage |
-| `/api/score` | POST | Scores a generation via Gemini Vision → saves to DB |
+| `/api/chat` | POST | Sends message to GPT-4.1 chat. Parses `<BRIEF_JSON>` blocks. |
+| `/api/generate` | POST | Assembles meta prompt → generates image(s) via gpt-image-1 → saves to DB + storage |
+| `/api/score` | POST | Scores a generation via GPT-4.1 Vision → saves to DB |
 | `/api/upload` | POST | Handles logo upload (PNG/SVG, max 5MB) → saves to UPLOAD_DIR |
 | `/api/library` | GET | Returns all generations for the logged-in user, with scores, reverse chron |
 | `/api/files/[filename]` | GET | Serves uploaded/generated files from UPLOAD_DIR |

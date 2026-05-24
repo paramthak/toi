@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import CreativeOutput from './CreativeOutput'
-import type { ScoringResult } from '@/lib/gemini'
+import type { ScoringResult } from '@/lib/openai'
 import type { BriefJSON } from '@/lib/prompts/metaPromptAssembler'
 
 interface Message {
@@ -108,14 +108,14 @@ export default function ChatInterface({ preloadedBrief }: ChatInterfaceProps) {
   const logoInputRef = useRef<HTMLInputElement>(null)
   const productPhotoInputRef = useRef<HTMLInputElement>(null)
 
-  // Chat history for Gemini
-  // Gemini requires history to start with 'user' — trim any leading model/assistant messages
-  const geminiHistoryRaw = messages
+  // Chat history for OpenAI
+  // History must start with 'user' — trim any leading model/assistant messages
+  const chatHistoryRaw = messages
     .filter(m => !m.imageUrl) // skip image messages from history
     .slice(1) // skip intro message
     .map(m => ({ role: m.role === 'assistant' ? 'model' as const : 'user' as const, parts: m.content }))
-  const firstUserIdx = geminiHistoryRaw.findIndex(m => m.role === 'user')
-  const geminiHistory = firstUserIdx >= 0 ? geminiHistoryRaw.slice(firstUserIdx) : []
+  const firstUserIdx = chatHistoryRaw.findIndex(m => m.role === 'user')
+  const chatHistory = firstUserIdx >= 0 ? chatHistoryRaw.slice(firstUserIdx) : []
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -282,7 +282,7 @@ export default function ChatInterface({ preloadedBrief }: ChatInterfaceProps) {
         body: JSON.stringify({
           sessionId,
           message: text,
-          history: geminiHistory,
+          history: chatHistory,
         }),
       })
 

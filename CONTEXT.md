@@ -20,9 +20,9 @@ Internal teams produce ~0.5% CTR Instagram ads. The bottleneck is a knowledge ga
 |---|---|
 | Frontend | Next.js 14 App Router · Mobile-first · TailwindCSS |
 | Backend | Node.js API routes (Next.js monorepo) |
-| Image generation | gemini-3-pro-image-preview |
-| Prompt building | gemini-1.5-flash (Gemini Flash) |
-| Post-gen scoring | gemini-1.5-flash with image input (Gemini Vision) |
+| Image generation | gpt-image-1 (OpenAI) |
+| Prompt building | gpt-4.1 (OpenAI) |
+| Post-gen scoring | gpt-4.1 with image input (OpenAI Vision) |
 | Database | Neon Serverless PostgreSQL |
 | File storage | Railway volume (UPLOAD_DIR env var, ./uploads locally) |
 | Auth | Username + password → JWT (jose for Edge/middleware, jsonwebtoken for Node) |
@@ -33,7 +33,7 @@ Internal teams produce ~0.5% CTR Instagram ads. The bottleneck is a knowledge ga
 ADMIN_USERNAME      # Login username (default: okok)
 ADMIN_PASSWORD      # Login password (default: okok)
 JWT_SECRET          # Secret for JWT signing — use a strong random string in prod
-GEMINI_API_KEY      # Google Gemini API key
+OPENAI_API_KEY      # OpenAI API key
 DATABASE_URL        # Neon Postgres connection string
 UPLOAD_DIR          # File storage path (default: ./uploads, use /uploads on Railway)
 NEXT_PUBLIC_APP_URL # App URL (e.g. https://creativeiq.up.railway.app)
@@ -41,12 +41,12 @@ NEXT_PUBLIC_APP_URL # App URL (e.g. https://creativeiq.up.railway.app)
 
 ## Request lifecycle (Chat)
 1. User uploads logo → begins chat session
-2. Gemini Flash (chat system prompt) collects signal across 6 dimensions: persona, JTBD, product, pain/aspiration, platform, brand
+2. GPT-4.1 (chat system prompt) collects signal across 6 dimensions: persona, JTBD, product, pain/aspiration, platform, brand
 3. Flash silently infers best creative archetype (8 archetypes) from collected signals
 4. System presents a brief preview to user for confirmation (includes BRIEF_JSON block parsed by the app)
-5. On confirm: Gemini Flash assembles meta prompt from brief → sends to gemini-3-pro-image-preview
+5. On confirm: GPT-4.1 assembles meta prompt from brief → sends to gpt-image-1
 6. Generated image returned and displayed immediately
-7. In background: Gemini Vision evaluates image against 7-factor scoring model (30–45s delay acceptable)
+7. In background: GPT-4.1 Vision evaluates image against 7-factor scoring model (30–45s delay acceptable)
 8. Score (0–100), label, and improvement tips surfaced in UI and as a chat message
 9. User iterates via chat — system updates meta prompt and regenerates
 
@@ -74,7 +74,7 @@ UGC_STYLE · UGLY_ANTI_DESIGN · MINIMALIST · HIGH_INFORMATION · MEME_IFIED ·
 ```
 app/              Next.js App Router pages + API routes
 components/       React client components (chat, product, library, ui)
-lib/              Core logic (auth, db, gemini, storage, prompts, utils)
+lib/              Core logic (auth, db, openai, storage, prompts, utils)
 scripts/          DB migration script
 uploads/          Local file storage (Railway volume in prod)
 ```

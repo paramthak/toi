@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import ScoreCard from '@/components/ui/ScoreCard'
 import Image from 'next/image'
-import type { ScoringResult } from '@/lib/gemini'
+import type { ScoringResult } from '@/lib/openai'
 
 const ARCHETYPES = [
   { value: 'AUTO', label: 'Auto (Recommended)', description: 'System picks highest-CTR approach' },

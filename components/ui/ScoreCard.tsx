@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { cn, getScoreBadgeStyle, getScoreRingColor } from '@/lib/utils'
-import type { ScoringResult } from '@/lib/gemini'
+import type { ScoringResult } from '@/lib/openai'
 
 const FACTOR_LABELS: Record<string, string> = {
   visual_hierarchy: 'Visual Hierarchy',

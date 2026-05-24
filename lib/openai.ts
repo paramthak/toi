@@ -1,20 +1,20 @@
-import { GoogleGenerativeAI, GenerativeModel, Part } from '@google/generative-ai'
+import OpenAI from 'openai'
 import { META_PROMPT_ASSEMBLER_SYSTEM, BriefJSON, buildMetaPromptUserMessage } from './prompts/metaPromptAssembler'
 import { SCORING_SYSTEM_PROMPT } from './prompts/scoringPrompt'
 import { PROMPT_EVALUATOR_SYSTEM, PROMPT_REFINER_SYSTEM } from './prompts/promptEvaluator'
 
-let genAI: GoogleGenerativeAI | null = null
+let openaiClient: OpenAI | null = null
 
-function getGenAI(): GoogleGenerativeAI {
-  if (!genAI) {
-    const apiKey = process.env.GEMINI_API_KEY
-    if (!apiKey) throw new Error('GEMINI_API_KEY is not set')
-    genAI = new GoogleGenerativeAI(apiKey)
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) throw new Error('OPENAI_API_KEY is not set')
+    openaiClient = new OpenAI({ apiKey })
   }
-  return genAI
+  return openaiClient
 }
 
-// ─── Chat (Gemini Flash) ─────────────────────────────────────────────────────
+// ─── Chat ────────────────────────────────────────────────────────────────────
 
 export interface ChatMessage {
   role: 'user' | 'model'
@@ -26,57 +26,64 @@ export async function sendChatMessage(
   userMessage: string,
   systemPrompt: string
 ): Promise<string> {
-  const ai = getGenAI()
-  const model = ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction: systemPrompt,
-  })
+  const client = getOpenAI()
 
-  const chat = model.startChat({
-    history: history.map(msg => ({
-      role: msg.role,
-      parts: [{ text: msg.parts }],
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
+    ...history.map(msg => ({
+      role: msg.role === 'model' ? 'assistant' as const : 'user' as const,
+      content: msg.parts,
     })),
+    { role: 'user', content: userMessage },
+  ]
+
+  const response = await client.chat.completions.create({
+    model: 'gpt-4.1',
+    messages,
   })
 
-  const result = await chat.sendMessage(userMessage)
-  return result.response.text()
+  return response.choices[0].message.content ?? ''
 }
 
-// ─── Meta Prompt Assembly (Gemini Flash) ────────────────────────────────────
+// ─── Meta Prompt Assembly ────────────────────────────────────────────────────
 
 export async function assemblMetaPrompt(
   brief: BriefJSON,
   productImageBase64?: string,
   productImageMime?: string
 ): Promise<string> {
-  const ai = getGenAI()
-  const model = ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction: META_PROMPT_ASSEMBLER_SYSTEM,
-  })
+  const client = getOpenAI()
 
-  const parts: Part[] = []
+  const userContent: OpenAI.Chat.ChatCompletionContentPart[] = []
 
   if (productImageBase64 && productImageMime) {
-    parts.push({
-      inlineData: {
-        data: productImageBase64,
-        mimeType: productImageMime as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
+    userContent.push({
+      type: 'image_url',
+      image_url: {
+        url: `data:${productImageMime};base64,${productImageBase64}`,
+        detail: 'high',
       },
     })
-    parts.push({
+    userContent.push({
+      type: 'text',
       text: `The image above is a product/app screenshot. Use it to inform visual composition, colors, and subject matter in your prompt output.\n\nBrief JSON:\n${buildMetaPromptUserMessage(brief)}`,
     })
   } else {
-    parts.push({ text: buildMetaPromptUserMessage(brief) })
+    userContent.push({ type: 'text', text: buildMetaPromptUserMessage(brief) })
   }
 
-  const result = await model.generateContent(parts)
-  return result.response.text()
+  const response = await client.chat.completions.create({
+    model: 'gpt-4.1',
+    messages: [
+      { role: 'system', content: META_PROMPT_ASSEMBLER_SYSTEM },
+      { role: 'user', content: userContent },
+    ],
+  })
+
+  return response.choices[0].message.content ?? ''
 }
 
-// ─── Prompt Evaluator + Refiner (text-only, pre-image-gen quality gate) ─────
+// ─── Prompt Evaluator + Refiner ──────────────────────────────────────────────
 
 interface PromptEvalResult {
   score: number
@@ -86,14 +93,18 @@ interface PromptEvalResult {
 }
 
 async function evaluatePrompt(prompt: string, logoProvided: boolean): Promise<PromptEvalResult> {
-  const ai = getGenAI()
-  const model = ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction: PROMPT_EVALUATOR_SYSTEM,
-  })
+  const client = getOpenAI()
   const input = logoProvided ? `[LOGO IS PROVIDED IN THIS BRIEF]\n\n${prompt}` : prompt
-  const result = await model.generateContent(input)
-  const text = result.response.text()
+
+  const response = await client.chat.completions.create({
+    model: 'gpt-4.1',
+    messages: [
+      { role: 'system', content: PROMPT_EVALUATOR_SYSTEM },
+      { role: 'user', content: input },
+    ],
+  })
+
+  const text = response.choices[0].message.content ?? ''
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   if (!jsonMatch) return { score: 0, passed: false, weaknesses: ['Evaluator returned no JSON'], quick_fixes: [] }
   return JSON.parse(jsonMatch[0]) as PromptEvalResult
@@ -105,16 +116,20 @@ async function refinePrompt(
   quick_fixes: string[],
   brief: BriefJSON
 ): Promise<string> {
-  const ai = getGenAI()
-  const model = ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction: PROMPT_REFINER_SYSTEM,
-  })
+  const client = getOpenAI()
   const fixes = weaknesses.map((w, i) => `• ${w}\n  FIX: ${quick_fixes[i] || 'Address this weakness'}`).join('\n')
   const context = JSON.stringify({ hook_concept: brief.hook_concept, archetype: brief.archetype, cta_text: brief.cta_text, emotional_lane: brief.emotional_lane }, null, 2)
   const input = `CURRENT PROMPT:\n${prompt}\n\nWEAKNESSES TO FIX:\n${fixes}\n\nBRIEF CONTEXT:\n${context}`
-  const result = await model.generateContent(input)
-  return result.response.text()
+
+  const response = await client.chat.completions.create({
+    model: 'gpt-4.1',
+    messages: [
+      { role: 'system', content: PROMPT_REFINER_SYSTEM },
+      { role: 'user', content: input },
+    ],
+  })
+
+  return response.choices[0].message.content ?? ''
 }
 
 /**
@@ -151,7 +166,7 @@ export async function assemblMetaPromptWithEval(
     console.log(`[PromptEval] iteration ${i + 1}: score=${evalResult.score}, passed=${evalResult.passed}`)
 
     if (evalResult.passed) break
-    if (i === EVAL_MAX_ITERATIONS - 1) break // Last attempt — use current prompt as-is
+    if (i === EVAL_MAX_ITERATIONS - 1) break
 
     try {
       prompt = await refinePrompt(prompt, evalResult.weaknesses, evalResult.quick_fixes, brief)
@@ -164,7 +179,7 @@ export async function assemblMetaPromptWithEval(
   return prompt
 }
 
-// ─── Image Generation (gemini-3-pro-image-preview) ──────────────────────────
+// ─── Image Generation (gpt-image-1) ─────────────────────────────────────────
 
 export interface GeneratedImage {
   base64Data: string
@@ -180,54 +195,42 @@ export async function generateImage(
   metaPrompt: string,
   inputImages?: InputImage[]
 ): Promise<GeneratedImage> {
-  const ai = getGenAI()
-  const model = ai.getGenerativeModel({ model: 'gemini-3-pro-image-preview' })
+  const client = getOpenAI()
 
-  const parts: Part[] = []
-
-  // Add input reference images (logo, product photo) FIRST so the model sees them as context
-  if (inputImages && inputImages.length > 0) {
-    for (const img of inputImages) {
-      parts.push({
-        inlineData: {
-          data: img.base64Data,
-          mimeType: img.mimeType as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
-        },
-      })
-    }
-  }
-
-  // Append the meta-prompt with a mandatory text rendering suffix
   const fullPrompt = metaPrompt +
     '\n\nCRITICAL RENDERING MANDATE: This is a real Instagram advertisement. ALL text elements described above MUST be physically rendered as clearly readable text IN the generated image. Do not omit any text overlays. The headline, CTA button/text, and any specified copy must appear as legible characters in the final image. An ad without readable text cannot function.'
 
-  parts.push({ text: fullPrompt })
+  if (inputImages && inputImages.length > 0) {
+    const imageFiles = inputImages.map((img, i) => {
+      const buffer = Buffer.from(img.base64Data, 'base64')
+      return new File([buffer], `input_${i}.png`, { type: img.mimeType })
+    })
 
-  const result = await model.generateContent({
-    contents: [{ role: 'user', parts }],
-    generationConfig: {
-      // @ts-ignore — image generation response type
-      responseModalities: ['image', 'text'],
-    } as Record<string, unknown>,
-  })
+    const response = await client.images.edit({
+      model: 'gpt-image-1',
+      image: imageFiles as unknown as File,
+      prompt: fullPrompt,
+      size: '1024x1024',
+    })
 
-  const responseParts = result.response.candidates?.[0]?.content?.parts ?? []
-  for (const part of responseParts) {
-    // @ts-ignore — inlineData is present for image responses
-    if (part.inlineData) {
-      return {
-        // @ts-ignore
-        base64Data: part.inlineData.data,
-        // @ts-ignore
-        mimeType: part.inlineData.mimeType || 'image/png',
-      }
-    }
+    const b64 = response.data?.[0]?.b64_json
+    if (!b64) throw new Error('No image returned from OpenAI image generation')
+    return { base64Data: b64, mimeType: 'image/png' }
+  } else {
+    const response = await client.images.generate({
+      model: 'gpt-image-1',
+      prompt: fullPrompt,
+      size: '1024x1024',
+      n: 1,
+    })
+
+    const b64 = response.data?.[0]?.b64_json
+    if (!b64) throw new Error('No image returned from OpenAI image generation')
+    return { base64Data: b64, mimeType: 'image/png' }
   }
-
-  throw new Error('No image returned from Gemini image generation')
 }
 
-// ─── Scoring (Gemini Vision) ─────────────────────────────────────────────────
+// ─── Scoring (GPT-4.1 Vision) ────────────────────────────────────────────────
 
 export interface ScoringResult {
   scroll_stop_gate: {
@@ -263,27 +266,32 @@ export async function scoreCreative(
   mimeType: string,
   brief: BriefJSON
 ): Promise<ScoringResult> {
-  const ai = getGenAI()
-  const model = ai.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-    systemInstruction: SCORING_SYSTEM_PROMPT,
+  const client = getOpenAI()
+
+  const response = await client.chat.completions.create({
+    model: 'gpt-4.1',
+    messages: [
+      { role: 'system', content: SCORING_SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:${mimeType};base64,${imageBase64}`,
+              detail: 'high',
+            },
+          },
+          {
+            type: 'text',
+            text: `Brief context:\n${JSON.stringify(brief, null, 2)}`,
+          },
+        ],
+      },
+    ],
   })
 
-  const imagePart: Part = {
-    inlineData: {
-      data: imageBase64,
-      mimeType: mimeType as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
-    },
-  }
-
-  const briefPart: Part = {
-    text: `Brief context:\n${JSON.stringify(brief, null, 2)}`,
-  }
-
-  const result = await model.generateContent([imagePart, briefPart])
-  const text = result.response.text()
-
-  // Extract JSON from response
+  const text = response.choices[0].message.content ?? ''
   const jsonMatch = text.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error('No valid JSON in scoring response')
 

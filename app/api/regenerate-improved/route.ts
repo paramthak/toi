@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth'
-import { assemblMetaPromptWithEval, generateImage } from '@/lib/gemini'
+import { assemblMetaPromptWithEval, generateImage } from '@/lib/openai'
 import { saveBase64Image, fileExists, readFileAsBase64 } from '@/lib/storage'
 import { query } from '@/lib/db'
 import { BriefJSON } from '@/lib/prompts/metaPromptAssembler'
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
           (msg) => emit({ type: 'status', message: msg })
         )
 
-        emit({ type: 'status', message: 'Sending to Gemini...' })
+        emit({ type: 'status', message: 'Generating image...' })
 
         const inputImages: Array<{ base64Data: string; mimeType: string }> = []
         if (logoImageBase64 && logoImageMime) {
