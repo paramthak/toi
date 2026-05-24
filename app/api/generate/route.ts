@@ -120,23 +120,27 @@ export async function POST(request: NextRequest) {
             inputImages.push({ base64Data: productImageBase64, mimeType: productImageMime })
           }
 
-          // Generate image — retry once on failure with simplified brief
+          // Generate image — retry once on failure with simplified brief (no input images)
           let generatedImage
-          let attempt = 0
-          while (attempt < 2) {
+          try {
+            console.log('[generate] attempt 1: calling generateImage')
+            generatedImage = await generateImage(
+              metaPrompt,
+              inputImages.length > 0 ? inputImages : undefined
+            )
+            console.log('[generate] attempt 1: success')
+          } catch (err) {
+            console.error('[generate] attempt 1 failed:', err instanceof Error ? err.message : err)
+            emit({ type: 'status', message: `${variantLabel}Retrying with simplified brief...` })
             try {
-              generatedImage = await generateImage(
-                metaPrompt,
-                inputImages.length > 0 ? inputImages : undefined
-              )
-              break
-            } catch (err) {
-              attempt++
-              if (attempt >= 2) throw err
-              emit({ type: 'status', message: `${variantLabel}Retrying with simplified brief...` })
               const simplifiedBrief = { ...variantBrief, hook_concept: 'simplified version' }
               const retryPrompt = await assemblMetaPrompt(simplifiedBrief)
+              console.log('[generate] attempt 2: calling generateImage')
               generatedImage = await generateImage(retryPrompt)
+              console.log('[generate] attempt 2: success')
+            } catch (retryErr) {
+              console.error('[generate] attempt 2 failed:', retryErr instanceof Error ? retryErr.message : retryErr)
+              throw retryErr
             }
           }
 
