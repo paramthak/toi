@@ -61,7 +61,6 @@ export default function ProductForm() {
     if (!persona.trim() || persona.trim().length < 20) {
       errs.persona = 'Your persona description needs a bit more detail — who exactly is this ad for?'
     }
-    if (!cta.trim()) errs.cta = 'CTA is required.'
     if (!product.trim() || product.trim().length < 10) {
       errs.product = 'Please describe your product in more detail.'
     }
@@ -246,7 +245,7 @@ export default function ProductForm() {
           {/* CTA */}
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-              CTA — What action should they take? <span className="text-red-400">*</span>
+              CTA — What action should they take? <span className="text-zinc-500 text-xs font-normal">(optional)</span>
             </label>
             <input
               type="text"
@@ -255,10 +254,9 @@ export default function ProductForm() {
               placeholder="e.g. Book a free call, Apply now, Learn more"
               className={cn(
                 'w-full bg-zinc-900 border rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition',
-                errors.cta ? 'border-red-500' : 'border-zinc-700'
+                'border-zinc-700'
               )}
             />
-            {errors.cta && <p className="text-red-400 text-xs mt-1">{errors.cta}</p>}
           </div>
 
           {/* Product */}
