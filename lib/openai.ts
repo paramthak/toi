@@ -191,19 +191,31 @@ export interface InputImage {
   mimeType: string
 }
 
+// Maps brief aspect ratios to gpt-image-2 supported sizes
+function aspectRatioToSize(aspectRatio?: string): '1024x1024' | '1024x1536' | '1536x1024' {
+  switch (aspectRatio) {
+    case '1:1':  return '1024x1024'
+    case '4:5':  return '1024x1536'  // portrait feed
+    case '9:16': return '1024x1536'  // stories / reels
+    default:     return '1024x1024'
+  }
+}
+
 export async function generateImage(
   metaPrompt: string,
+  aspectRatio?: string,
 ): Promise<GeneratedImage> {
   const client = getOpenAI()
+  const size = aspectRatioToSize(aspectRatio)
 
   const fullPrompt = metaPrompt +
     '\n\nIf headline or body text is specified, render it as clearly readable text in the image. Do not leave placeholder shapes where text should be.'
 
-  console.log('[generateImage] calling images.generate')
+  console.log(`[generateImage] calling images.generate — model=gpt-image-2 size=${size}`)
   const response = await client.images.generate({
-    model: 'gpt-image-1',
+    model: 'gpt-image-2',
     prompt: fullPrompt,
-    size: '1024x1024',
+    size,
     n: 1,
   })
 

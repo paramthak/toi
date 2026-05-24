@@ -107,11 +107,13 @@ export async function POST(request: NextRequest) {
 
           emit({ type: 'status', message: `${variantLabel}Generating image...` })
 
+          const aspectRatio = brief.aspect_ratios?.[0] ?? '4:5'
+
           // Generate image — retry once with simplified brief on failure
           let generatedImage
           try {
             console.log('[generate] attempt 1: calling generateImage')
-            generatedImage = await generateImage(metaPrompt)
+            generatedImage = await generateImage(metaPrompt, aspectRatio)
             console.log('[generate] attempt 1: success')
           } catch (err) {
             console.error('[generate] attempt 1 failed:', err instanceof Error ? err.message : err)
@@ -120,7 +122,7 @@ export async function POST(request: NextRequest) {
               const simplifiedBrief = { ...variantBrief, hook_concept: 'simplified version' }
               const retryPrompt = await assemblMetaPrompt(simplifiedBrief)
               console.log('[generate] attempt 2: calling generateImage')
-              generatedImage = await generateImage(retryPrompt)
+              generatedImage = await generateImage(retryPrompt, aspectRatio)
               console.log('[generate] attempt 2: success')
             } catch (retryErr) {
               console.error('[generate] attempt 2 failed:', retryErr instanceof Error ? retryErr.message : retryErr)
@@ -144,7 +146,6 @@ export async function POST(request: NextRequest) {
 
           const imageUrl = await saveBase64Image(finalBase64, generatedImage.mimeType)
 
-          const aspectRatio = brief.aspect_ratios?.[0] || '4:5'
           const rows = await query<{ id: string }>(
             `INSERT INTO generations
               (session_id, brief_json, archetype, meta_prompt, image_url, aspect_ratio, variant_number, image_data)

@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
 
         emit({ type: 'status', message: 'Generating image...' })
 
-        const generatedImage = await generateImage(metaPrompt)
+        const generatedImage = await generateImage(metaPrompt, gen.aspect_ratio)
 
         // Composite the real logo onto the generated image using Sharp
         let finalBase64 = generatedImage.base64Data
