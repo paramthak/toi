@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth'
 import { assemblMetaPrompt, assemblMetaPromptWithEval, generateImage } from '@/lib/openai'
-import { saveBase64Image, fileExists, readFileAsBase64 } from '@/lib/storage'
+import { saveBase64Image, fileExists, readFileAsBase64, compositeLogoOntoImage } from '@/lib/storage'
 import path from 'path'
 import { query } from '@/lib/db'
 import { BriefJSON } from '@/lib/prompts/metaPromptAssembler'
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Brief required' }, { status: 400 })
   }
 
-  // Load product photo
+  // Load product photo (for prompt context only)
   let productImageBase64: string | undefined
   let productImageMime: string | undefined
   if (productPhotoUrl) {
@@ -53,15 +53,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Load logo
+  // Load logo — used for Sharp compositing after generation (supports SVG too)
   let logoImageBase64: string | undefined
-  let logoImageMime: string | undefined
   if (logoUrl) {
     const logoFilename = path.basename(logoUrl)
-    const logoExt = path.extname(logoFilename).toLowerCase().replace('.', '')
-    if (logoExt !== 'svg' && fileExists(logoFilename)) {
+    if (fileExists(logoFilename)) {
       logoImageBase64 = readFileAsBase64(logoFilename)
-      logoImageMime = logoExt === 'jpg' || logoExt === 'jpeg' ? 'image/jpeg' : 'image/png'
     }
   }
 
@@ -95,11 +92,9 @@ export async function POST(request: NextRequest) {
           }
 
           if (logoImageBase64) {
-            variantBrief.brand_constraints = `${variantBrief.brand_constraints || 'none'}. LOGO INPUT PROVIDED: The brand logo has been provided as a visual reference image input. Embed the exact provided logo in the bottom-left corner of the final image, at approximately 10-12% of frame width. Preserve its exact colors, transparency, and shape without modification. Do NOT add any background rectangle, shadow, or padding behind the logo.`
             variantBrief._logo_b64 = logoImageBase64
-            variantBrief._logo_mime = logoImageMime
-          } else if (logoUrl) {
-            variantBrief.brand_constraints = `${variantBrief.brand_constraints || 'none'}. Place brand logo in bottom-left corner.`
+            // Tell the prompt assembler a logo will be composited — leave bottom-left clear
+            variantBrief.brand_constraints = `${variantBrief.brand_constraints || 'none'}. Leave the bottom-left corner of the image clear (approx 15% width × 10% height) — the brand logo will be composited onto that area after generation.`
           }
 
           const metaPrompt = await assemblMetaPromptWithEval(
@@ -112,22 +107,11 @@ export async function POST(request: NextRequest) {
 
           emit({ type: 'status', message: `${variantLabel}Generating image...` })
 
-          const inputImages: Array<{ base64Data: string; mimeType: string }> = []
-          if (logoImageBase64 && logoImageMime) {
-            inputImages.push({ base64Data: logoImageBase64, mimeType: logoImageMime })
-          }
-          if (productImageBase64 && productImageMime) {
-            inputImages.push({ base64Data: productImageBase64, mimeType: productImageMime })
-          }
-
-          // Generate image — retry once on failure with simplified brief (no input images)
+          // Generate image — retry once with simplified brief on failure
           let generatedImage
           try {
             console.log('[generate] attempt 1: calling generateImage')
-            generatedImage = await generateImage(
-              metaPrompt,
-              inputImages.length > 0 ? inputImages : undefined
-            )
+            generatedImage = await generateImage(metaPrompt)
             console.log('[generate] attempt 1: success')
           } catch (err) {
             console.error('[generate] attempt 1 failed:', err instanceof Error ? err.message : err)
@@ -146,7 +130,19 @@ export async function POST(request: NextRequest) {
 
           if (!generatedImage) throw new Error('Image generation returned null')
 
-          const imageUrl = await saveBase64Image(generatedImage.base64Data, generatedImage.mimeType)
+          // Composite the real logo onto the generated image using Sharp
+          let finalBase64 = generatedImage.base64Data
+          if (logoImageBase64) {
+            try {
+              emit({ type: 'status', message: `${variantLabel}Adding logo...` })
+              finalBase64 = await compositeLogoOntoImage(generatedImage.base64Data, logoImageBase64)
+              console.log('[generate] logo composited successfully')
+            } catch (logoErr) {
+              console.error('[generate] logo composite failed (using image without logo):', logoErr instanceof Error ? logoErr.message : logoErr)
+            }
+          }
+
+          const imageUrl = await saveBase64Image(finalBase64, generatedImage.mimeType)
 
           const aspectRatio = brief.aspect_ratios?.[0] || '4:5'
           const rows = await query<{ id: string }>(
@@ -161,7 +157,7 @@ export async function POST(request: NextRequest) {
               imageUrl,
               aspectRatio,
               i,
-              generatedImage.base64Data,
+              finalBase64,
             ]
           )
 

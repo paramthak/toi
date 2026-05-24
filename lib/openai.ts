@@ -193,46 +193,24 @@ export interface InputImage {
 
 export async function generateImage(
   metaPrompt: string,
-  inputImages?: InputImage[]
 ): Promise<GeneratedImage> {
   const client = getOpenAI()
 
   const fullPrompt = metaPrompt +
-    '\n\nCRITICAL RENDERING MANDATE: This is a real Instagram advertisement. ALL text elements described above MUST be physically rendered as clearly readable text IN the generated image. Do not omit any text overlays. The headline, CTA button/text, and any specified copy must appear as legible characters in the final image. An ad without readable text cannot function.'
+    '\n\nIf headline or body text is specified, render it as clearly readable text in the image. Do not leave placeholder shapes where text should be.'
 
-  if (inputImages && inputImages.length > 0) {
-    console.log('[generateImage] calling images.edit with', inputImages.length, 'input image(s)')
-    const imageFiles = await Promise.all(
-      inputImages.map((img, i) =>
-        toFile(Buffer.from(img.base64Data, 'base64'), `input_${i}.png`, { type: img.mimeType })
-      )
-    )
+  console.log('[generateImage] calling images.generate')
+  const response = await client.images.generate({
+    model: 'gpt-image-1',
+    prompt: fullPrompt,
+    size: '1024x1024',
+    n: 1,
+  })
 
-    const response = await client.images.edit({
-      model: 'gpt-image-1',
-      image: imageFiles[0],
-      prompt: fullPrompt,
-      size: '1024x1024',
-    })
-
-    console.log('[generateImage] images.edit response received')
-    const b64 = response.data?.[0]?.b64_json
-    if (!b64) throw new Error('No image returned from OpenAI image generation')
-    return { base64Data: b64, mimeType: 'image/png' }
-  } else {
-    console.log('[generateImage] calling images.generate')
-    const response = await client.images.generate({
-      model: 'gpt-image-1',
-      prompt: fullPrompt,
-      size: '1024x1024',
-      n: 1,
-    })
-
-    console.log('[generateImage] images.generate response received')
-    const b64 = response.data?.[0]?.b64_json
-    if (!b64) throw new Error('No image returned from OpenAI image generation')
-    return { base64Data: b64, mimeType: 'image/png' }
-  }
+  console.log('[generateImage] images.generate response received')
+  const b64 = response.data?.[0]?.b64_json
+  if (!b64) throw new Error('No image returned from OpenAI image generation')
+  return { base64Data: b64, mimeType: 'image/png' }
 }
 
 // ─── Scoring (GPT-4.1 Vision) ────────────────────────────────────────────────

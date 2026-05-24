@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/auth'
 import { assemblMetaPromptWithEval, generateImage } from '@/lib/openai'
-import { saveBase64Image, fileExists, readFileAsBase64 } from '@/lib/storage'
+import { saveBase64Image, fileExists, readFileAsBase64, compositeLogoOntoImage } from '@/lib/storage'
 import { query } from '@/lib/db'
 import { BriefJSON } from '@/lib/prompts/metaPromptAssembler'
 import path from 'path'
@@ -97,26 +97,19 @@ export async function POST(request: NextRequest) {
 
   // Load logo — try filesystem first, fall back to _logo_b64 stored in original brief_json
   let logoImageBase64: string | undefined
-  let logoImageMime: string | undefined
   if (logoUrl) {
     const logoFilename = path.basename(logoUrl)
-    const logoExt = path.extname(logoFilename).toLowerCase().replace('.', '')
-    if (logoExt !== 'svg') {
-      if (fileExists(logoFilename)) {
-        logoImageBase64 = readFileAsBase64(logoFilename)
-        logoImageMime = logoExt === 'jpg' || logoExt === 'jpeg' ? 'image/jpeg' : 'image/png'
-      } else if (originalBrief._logo_b64) {
-        logoImageBase64 = originalBrief._logo_b64
-        logoImageMime = originalBrief._logo_mime || 'image/png'
-        console.log('[regenerate-improved] logo loaded from DB fallback (_logo_b64)')
-      }
+    if (fileExists(logoFilename)) {
+      logoImageBase64 = readFileAsBase64(logoFilename)
+    } else if (originalBrief._logo_b64) {
+      logoImageBase64 = originalBrief._logo_b64
+      console.log('[regenerate-improved] logo loaded from DB fallback (_logo_b64)')
     }
   }
 
   if (logoImageBase64) {
-    enrichedBrief.brand_constraints = `${enrichedBrief.brand_constraints || 'none'}. LOGO INPUT PROVIDED: The brand logo has been provided as a visual reference image input. Embed the exact provided logo in the bottom-left corner of the final image, at approximately 10-12% of frame width. Preserve its exact colors, transparency, and shape without modification. Do NOT add any background rectangle, shadow, or padding behind the logo.`
     enrichedBrief._logo_b64 = logoImageBase64
-    enrichedBrief._logo_mime = logoImageMime
+    enrichedBrief.brand_constraints = `${enrichedBrief.brand_constraints || 'none'}. Leave the bottom-left corner of the image clear (approx 15% width × 10% height) — the brand logo will be composited onto that area after generation.`
   }
 
   const encoder = new TextEncoder()
@@ -138,20 +131,20 @@ export async function POST(request: NextRequest) {
 
         emit({ type: 'status', message: 'Generating image...' })
 
-        const inputImages: Array<{ base64Data: string; mimeType: string }> = []
-        if (logoImageBase64 && logoImageMime) {
-          inputImages.push({ base64Data: logoImageBase64, mimeType: logoImageMime })
-        }
-        if (productImageBase64 && productImageMime) {
-          inputImages.push({ base64Data: productImageBase64, mimeType: productImageMime })
+        const generatedImage = await generateImage(metaPrompt)
+
+        // Composite the real logo onto the generated image using Sharp
+        let finalBase64 = generatedImage.base64Data
+        if (logoImageBase64) {
+          try {
+            emit({ type: 'status', message: 'Adding logo...' })
+            finalBase64 = await compositeLogoOntoImage(generatedImage.base64Data, logoImageBase64)
+          } catch (logoErr) {
+            console.error('[regenerate] logo composite failed:', logoErr instanceof Error ? logoErr.message : logoErr)
+          }
         }
 
-        const generatedImage = await generateImage(
-          metaPrompt,
-          inputImages.length > 0 ? inputImages : undefined
-        )
-
-        const imageUrl = await saveBase64Image(generatedImage.base64Data, generatedImage.mimeType)
+        const imageUrl = await saveBase64Image(finalBase64, generatedImage.mimeType)
 
         const rows = await query<{ id: string }>(
           `INSERT INTO generations
@@ -165,7 +158,7 @@ export async function POST(request: NextRequest) {
             imageUrl,
             gen.aspect_ratio,
             1,
-            generatedImage.base64Data,
+            finalBase64,
           ]
         )
         const newGenerationId = rows[0].id
