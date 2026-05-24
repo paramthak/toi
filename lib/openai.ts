@@ -92,9 +92,12 @@ interface PromptEvalResult {
   quick_fixes: string[]
 }
 
-async function evaluatePrompt(prompt: string, logoProvided: boolean): Promise<PromptEvalResult> {
+async function evaluatePrompt(prompt: string, logoProvided: boolean, hasCta: boolean): Promise<PromptEvalResult> {
   const client = getOpenAI()
-  const input = logoProvided ? `[LOGO IS PROVIDED IN THIS BRIEF]\n\n${prompt}` : prompt
+  const tags: string[] = []
+  if (logoProvided) tags.push('[LOGO IS PROVIDED IN THIS BRIEF]')
+  tags.push(hasCta ? '[CTA IS PROVIDED IN THIS BRIEF]' : '[NO CTA IN THIS BRIEF — absence of CTA is correct]')
+  const input = tags.length ? `${tags.join('\n')}\n\n${prompt}` : prompt
 
   const response = await client.chat.completions.create({
     model: 'gpt-4.1',
@@ -151,12 +154,13 @@ export async function assemblMetaPromptWithEval(
 ): Promise<string> {
   statusCallback?.('Writing image prompt...')
   let prompt = await assemblMetaPrompt(brief, productImageBase64, productImageMime)
+  const hasCta = !!(brief.cta_text?.trim())
 
   for (let i = 0; i < EVAL_MAX_ITERATIONS; i++) {
     let evalResult: PromptEvalResult
     try {
       statusCallback?.(`Evaluating prompt quality (${i + 1}/${EVAL_MAX_ITERATIONS})...`)
-      evalResult = await evaluatePrompt(prompt, logoProvided ?? false)
+      evalResult = await evaluatePrompt(prompt, logoProvided ?? false, hasCta)
       statusCallback?.(`Prompt score: ${evalResult.score}/100${evalResult.passed ? ' ✓' : ` — refining...`}`)
     } catch (err) {
       console.log(`[PromptEval] iteration ${i + 1} eval failed:`, err instanceof Error ? err.message : err)

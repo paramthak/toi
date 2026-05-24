@@ -44,11 +44,18 @@ SCORING RULES:
 - Score Visual Hierarchy based on: single focal point presence, top-heavy visual
   weight, reading path clarity, absence of competing loud elements
 - Score Psychological Triggers based on: which trigger is dominant and how
-  explicitly/viscerally it is encoded (not just implied)
+  explicitly/viscerally it is encoded (not just implied) — a neutral pleasant scene with no tension scores low
 - Score Human Element: if archetype is MINIMALIST or PATTERN_INTERRUPT,
   baseline is 60 for no face — do not penalise further
-- Score CTA: if archetype explicitly warrants no CTA (MINIMALIST, PATTERN_INTERRUPT),
-  baseline is 65 — do not penalise to 0
+
+CTA SCORING RULE (CRITICAL — read brief.cta_text before scoring):
+- If brief.cta_text is empty, null, or absent → cta_execution = 100.
+  The creative CORRECTLY omitted a CTA per the brief. Do not penalise.
+  Do NOT include any tip suggesting to add a CTA. Use that tip slot for the next most impactful issue.
+- If brief.cta_text has a value but no CTA appears in the image → score 0-50 based on how much
+  the absence hurts the creative given its archetype.
+- If brief.cta_text has a value and a CTA appears → score 70-100 based on contrast, position, copy accuracy.
+
 - Score Platform Fit against the declared placement in the brief
 - All scores must be integers 0-100 except gate scores which are floats 0.0-1.0
 - Return EXACTLY 5-7 improvement tips ordered by priority (most impactful first).
@@ -57,6 +64,7 @@ SCORING RULES:
 - Each tip MUST have a prompt_addition — the exact phrase a user would add to the
   generation prompt to fix the issue. Make it specific and copy-paste ready.
 - Tips must be specific to THIS creative — not generic advice.
+- NEVER suggest adding a CTA if brief.cta_text was not provided.
 
 SCORE LABEL RULES (MUST match these exact thresholds — do not use your own judgment):
 - final_score >= 90 → "Elite"
